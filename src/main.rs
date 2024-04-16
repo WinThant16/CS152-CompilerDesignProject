@@ -87,6 +87,12 @@ enum Token {
   Func,
   Return,
   Int,
+  LeftCurly,
+  RightCurly,
+  LeftBracket,
+  RightBracket,
+  Comma,
+  Semicolon
 }
 
 // In Rust, you can model the function behavior using the type system.
@@ -154,6 +160,42 @@ fn lex(mut code: &str) -> Result<Vec<Token>, String> {
     if code.starts_with("=") {
       code = &code[1..];
       tokens.push(Token::Assign);
+      continue;
+    }
+
+    if code.starts_with("{") {
+      code = &code[1..];
+      tokens.push(Token::LeftCurly);
+      continue;
+    }
+
+    if code.starts_with("}") {
+      code = &code[1..];
+      tokens.push(Token::RightCurly);
+      continue;
+    }
+
+    if code.starts_with("[") {
+      code = &code[1..];
+      tokens.push(Token::LeftBracket);
+      continue;
+    }
+
+    if code.starts_with("]") {
+      code = &code[1..];
+      tokens.push(Token::RightBracket);
+      continue;
+    }
+
+    if code.starts_with(",") {
+      code = &code[1..];
+      tokens.push(Token::Comma);
+      continue;
+    }
+
+    if code.starts_with(";") {
+      code = &code[1..];
+      tokens.push(Token::Semicolon);
       continue;
     }
 
@@ -326,13 +368,15 @@ mod tests {
     #[test]
     fn lexer_test() {
         // test that lexer works on correct cases
-        let toks = lex("1 + 2 + 3").unwrap();
-        assert!(toks.len() == 5);
-        assert!(matches!(toks[0], Token::Num(1)));
-        assert!(matches!(toks[1], Token::Plus));
-        assert!(matches!(toks[2], Token::Num(2)));
-        assert!(matches!(toks[3], Token::Plus));
-        assert!(matches!(toks[4], Token::Num(3)));
+        let toks = lex("[1 + 2 + 3;").unwrap();
+        assert!(toks.len() == 7);
+        assert!(matches!(toks[0], Token::LeftBracket));
+        assert!(matches!(toks[1], Token::Num(1)));
+        assert!(matches!(toks[2], Token::Plus));
+        assert!(matches!(toks[3], Token::Num(2)));
+        assert!(matches!(toks[4], Token::Plus));
+        assert!(matches!(toks[5], Token::Num(3)));
+        assert!(matches!(toks[6], Token::Semicolon));
 
         let toks = lex("3 + 215 +-").unwrap();
         assert!(toks.len() == 5);
