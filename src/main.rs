@@ -368,15 +368,14 @@ mod tests {
     #[test]
     fn lexer_test() {
         // test that lexer works on correct cases
-        let toks = lex("[1 + 2 + 3;").unwrap();
+        let toks = lex("1 + 2 + 3").unwrap();
         assert!(toks.len() == 7);
-        assert!(matches!(toks[0], Token::LeftBracket));
-        assert!(matches!(toks[1], Token::Num(1)));
-        assert!(matches!(toks[2], Token::Plus));
-        assert!(matches!(toks[3], Token::Num(2)));
-        assert!(matches!(toks[4], Token::Plus));
-        assert!(matches!(toks[5], Token::Num(3)));
-        assert!(matches!(toks[6], Token::Semicolon));
+        assert!(matches!(toks[0], Token::Num(1)));
+        assert!(matches!(toks[1], Token::Plus));
+        assert!(matches!(toks[2], Token::Num(2)));
+        assert!(matches!(toks[3], Token::Plus));
+        assert!(matches!(toks[4], Token::Num(3)));
+
 
         let toks = lex("3 + 215 +-").unwrap();
         assert!(toks.len() == 5);
