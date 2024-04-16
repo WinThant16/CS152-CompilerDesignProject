@@ -87,6 +87,12 @@ enum Token {
   Func,
   Return,
   Int,
+  Less,
+  LessEqual,
+  Greater,
+  GreaterEqual,
+  Equality,
+  NotEqual
 }
 
 // In Rust, you can model the function behavior using the type system.
@@ -151,9 +157,45 @@ fn lex(mut code: &str) -> Result<Vec<Token>, String> {
       continue;
     }
 
+    if code.starts_with("==") {
+      code = &code[2..];
+      tokens.push(Token::Equality);
+      continue;
+    }
+
     if code.starts_with("=") {
       code = &code[1..];
       tokens.push(Token::Assign);
+      continue;
+    }
+
+    if code.starts_with("<=") {
+      code = &code[2..];
+      tokens.push(Token::LessEqual);
+      continue;
+    }
+
+    if code.starts_with("<") {
+      code = &code[1..];
+      tokens.push(Token::Less);
+      continue;
+    }
+
+    if code.starts_with(">=") {
+      code = &code[2..];
+      tokens.push(Token::GreaterEqual);
+      continue;
+    }
+
+    if code.starts_with(">") {
+      code = &code[1..];
+      tokens.push(Token::Greater);
+      continue;
+    }
+
+    if code.starts_with("!=") {
+      code = &code[2..];
+      tokens.push(Token::NotEqual);
       continue;
     }
 
@@ -325,6 +367,43 @@ mod tests {
 
     #[test]
     fn lexer_test() {
+
+        let toks = lex("1 <2").unwrap();
+        assert!(toks.len() == 3);
+        assert!(matches!(toks[0], Token::Num(1)));
+        assert!(matches!(toks[1], Token::Less));
+        assert!(matches!(toks[2], Token::Num(2)));
+
+        let toks = lex("1 > 2").unwrap();
+        assert!(toks.len() == 3);
+        assert!(matches!(toks[0], Token::Num(1)));
+        assert!(matches!(toks[1], Token::Greater));
+        assert!(matches!(toks[2], Token::Num(2)));
+
+        let toks = lex("1 <= 2").unwrap();
+        assert!(toks.len() == 3);
+        assert!(matches!(toks[0], Token::Num(1)));
+        assert!(matches!(toks[1], Token::LessEqual));
+        assert!(matches!(toks[2], Token::Num(2)));
+
+        let toks = lex("1>=2").unwrap();
+        assert!(toks.len() == 3);
+        assert!(matches!(toks[0], Token::Num(1)));
+        assert!(matches!(toks[1], Token::GreaterEqual));
+        assert!(matches!(toks[2], Token::Num(2)));
+
+        let toks = lex("1==2").unwrap();
+        assert!(toks.len() == 3);
+        assert!(matches!(toks[0], Token::Num(1)));
+        assert!(matches!(toks[1], Token::Equality));
+        assert!(matches!(toks[2], Token::Num(2)));
+
+        let toks = lex("1!=2").unwrap();
+        assert!(toks.len() == 3);
+        assert!(matches!(toks[0], Token::Num(1)));
+        assert!(matches!(toks[1], Token::NotEqual));
+        assert!(matches!(toks[2], Token::Num(2)));
+
         // test that lexer works on correct cases
         let toks = lex("1 + 2 + 3").unwrap();
         assert!(toks.len() == 5);
