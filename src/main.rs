@@ -87,6 +87,12 @@ enum Token {
   Func,
   Return,
   Int,
+  LeftCurly,
+  RightCurly,
+  LeftBracket,
+  RightBracket,
+  Comma,
+  Semicolon
   Less,
   LessEqual,
   Greater,
@@ -169,6 +175,40 @@ fn lex(mut code: &str) -> Result<Vec<Token>, String> {
       continue;
     }
 
+    if code.starts_with("{") {
+      code = &code[1..];
+      tokens.push(Token::LeftCurly);
+      continue;
+    }
+
+    if code.starts_with("}") {
+      code = &code[1..];
+      tokens.push(Token::RightCurly);
+      continue;
+    }
+
+    if code.starts_with("[") {
+      code = &code[1..];
+      tokens.push(Token::LeftBracket);
+      continue;
+    }
+
+    if code.starts_with("]") {
+      code = &code[1..];
+      tokens.push(Token::RightBracket);
+      continue;
+    }
+
+    if code.starts_with(",") {
+      code = &code[1..];
+      tokens.push(Token::Comma);
+      continue;
+    }
+
+    if code.starts_with(";") {
+      code = &code[1..];
+      tokens.push(Token::Semicolon);
+      
     if code.starts_with("<=") {
       code = &code[2..];
       tokens.push(Token::LessEqual);
@@ -406,12 +446,13 @@ mod tests {
 
         // test that lexer works on correct cases
         let toks = lex("1 + 2 + 3").unwrap();
-        assert!(toks.len() == 5);
+        assert!(toks.len() == 7);
         assert!(matches!(toks[0], Token::Num(1)));
         assert!(matches!(toks[1], Token::Plus));
         assert!(matches!(toks[2], Token::Num(2)));
         assert!(matches!(toks[3], Token::Plus));
         assert!(matches!(toks[4], Token::Num(3)));
+
 
         let toks = lex("3 + 215 +-").unwrap();
         assert!(toks.len() == 5);
