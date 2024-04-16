@@ -374,7 +374,7 @@ mod tests {
         assert!(matches!(toks[1], Token::Less));
         assert!(matches!(toks[2], Token::Num(2)));
 
-        let toks = lex("1> 2").unwrap();
+        let toks = lex("1 > 2").unwrap();
         assert!(toks.len() == 3);
         assert!(matches!(toks[0], Token::Num(1)));
         assert!(matches!(toks[1], Token::Greater));
