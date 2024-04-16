@@ -87,6 +87,12 @@ enum Token {
   Func,
   Return,
   Int,
+  Print,
+  Else,
+  Break,
+  Continue,
+  LeftParen,
+  RightParen,
 }
 
 // In Rust, you can model the function behavior using the type system.
@@ -154,6 +160,18 @@ fn lex(mut code: &str) -> Result<Vec<Token>, String> {
     if code.starts_with("=") {
       code = &code[1..];
       tokens.push(Token::Assign);
+      continue;
+    }
+
+    if code.starts_with("("){
+      code = &code[1..];
+      tokens.push(Token::LeftParen);
+      continue;
+    }
+    
+    if code.starts_with(")"){
+      code = &code[1..];
+      tokens.push(Token::RightParen);
       continue;
     }
 
@@ -310,6 +328,12 @@ fn create_identifier(code: &str) -> Token {
   "read" => Token::Read,
   "while" => Token::While,
   "if" => Token::If,
+
+  // print, else, break, continue keywords
+  "print" => Token::Print,
+  "else" => Token::Else,
+  "break" => Token::Break,
+  "continue" => Token::Continue,
   _ => Token::Ident(String::from(code)),
   }
 }
@@ -344,6 +368,39 @@ mod tests {
 
         // test that the lexer catches invalid tokens
         assert!(matches!(lex("^^^"), Err(_)));
+
+        //test that lexer identifies left paren and right paren
+        let toks = lex("( ( ( ( ) ) ) )").unwrap();
+        assert!(toks.len() == 8);
+        assert!(matches!(toks[0], Token::LeftParen));
+        assert!(matches!(toks[1], Token::LeftParen));
+        assert!(matches!(toks[2], Token::LeftParen));
+        assert!(matches!(toks[3], Token::LeftParen));
+        assert!(matches!(toks[4], Token::RightParen));
+        assert!(matches!(toks[5], Token::RightParen));
+        assert!(matches!(toks[6], Token::RightParen));
+        assert!(matches!(toks[7], Token::RightParen));
+
+
+        // test for print
+        let toks = lex("print ").unwrap();
+        assert!(toks.len() == 1);
+        assert!(matches!(toks[0], Token::Print));
+
+         // test for else
+         let toks = lex("else ").unwrap();
+         assert!(toks.len() == 1);
+         assert!(matches!(toks[0], Token::Else));
+
+          // test for break
+        let toks = lex("break ").unwrap();
+        assert!(toks.len() == 1);
+        assert!(matches!(toks[0], Token::Break));
+
+         // test for continue
+         let toks = lex("continue ").unwrap();
+         assert!(toks.len() == 1);
+         assert!(matches!(toks[0], Token::Continue));
     }
 
 }
