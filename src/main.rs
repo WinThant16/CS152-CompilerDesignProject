@@ -98,7 +98,7 @@ enum Token {
   LeftBracket,
   RightBracket,
   Comma,
-  Semicolon
+  Semicolon,
   Less,
   LessEqual,
   Greater,
@@ -232,6 +232,8 @@ fn lex(mut code: &str) -> Result<Vec<Token>, String> {
     if code.starts_with(";") {
       code = &code[1..];
       tokens.push(Token::Semicolon);
+      continue;
+    } 
       
     if code.starts_with("<=") {
       code = &code[2..];
@@ -489,7 +491,7 @@ mod tests {
 
         // test that lexer works on correct cases
         let toks = lex("1 + 2 + 3").unwrap();
-        assert!(toks.len() == 7);
+        assert!(toks.len() == 5);
         assert!(matches!(toks[0], Token::Num(1)));
         assert!(matches!(toks[1], Token::Plus));
         assert!(matches!(toks[2], Token::Num(2)));
