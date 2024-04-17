@@ -175,6 +175,12 @@ fn lex(mut code: &str) -> Result<Vec<Token>, String> {
       continue;
     }
 
+    // Check for comment
+    if code.starts_with('#') {
+      code = skip_comment(code);
+      continue;
+  }
+
     let (success, token, rest) = lex_identifier(code);
     if success {
       code = rest;
@@ -288,6 +294,19 @@ fn lex_identifier(code: &str) -> (bool, Token, &str) {
   }
 }
 
+// Function to skip comments in the code
+// takes a reference to a string (code) as input, returns a slice of the string.
+// If the input code contains a newline character ('\n'),  returns a slice starting from the character immediately after the newline.
+//If no newline character is found, it returns an empty string.
+fn skip_comment(code: &str) -> &str {
+  if let Some(pos) = code.find('\n') {
+      &code[pos + 1..]
+  } else {
+      ""
+  }
+}
+
+
 fn unrecognized_symbol(code: &str) -> &str {
   enum StateMachine {
     Start,
@@ -398,9 +417,14 @@ mod tests {
         assert!(matches!(toks[0], Token::Break));
 
          // test for continue
-         let toks = lex("continue ").unwrap();
-         assert!(toks.len() == 1);
-         assert!(matches!(toks[0], Token::Continue));
+        let toks = lex("continue ").unwrap();
+        assert!(toks.len() == 1);
+        assert!(matches!(toks[0], Token::Continue));
+
+         //test for comments
+        let toks = lex("# \n 1").unwrap();
+        assert!(toks.len() == 1);
+        assert!(matches!(toks[0], Token::Num(1)));
     }
 
 }
