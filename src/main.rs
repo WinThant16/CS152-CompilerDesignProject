@@ -93,6 +93,18 @@ enum Token {
   Continue,
   LeftParen,
   RightParen,
+  LeftCurly,
+  RightCurly,
+  LeftBracket,
+  RightBracket,
+  Comma,
+  Semicolon
+  Less,
+  LessEqual,
+  Greater,
+  GreaterEqual,
+  Equality,
+  NotEqual
 }
 
 // In Rust, you can model the function behavior using the type system.
@@ -157,6 +169,12 @@ fn lex(mut code: &str) -> Result<Vec<Token>, String> {
       continue;
     }
 
+    if code.starts_with("==") {
+      code = &code[2..];
+      tokens.push(Token::Equality);
+      continue;
+    }
+
     if code.starts_with("=") {
       code = &code[1..];
       tokens.push(Token::Assign);
@@ -180,6 +198,70 @@ fn lex(mut code: &str) -> Result<Vec<Token>, String> {
       code = skip_comment(code);
       continue;
   }
+
+    if code.starts_with("{") {
+      code = &code[1..];
+      tokens.push(Token::LeftCurly);
+      continue;
+    }
+
+    if code.starts_with("}") {
+      code = &code[1..];
+      tokens.push(Token::RightCurly);
+      continue;
+    }
+
+    if code.starts_with("[") {
+      code = &code[1..];
+      tokens.push(Token::LeftBracket);
+      continue;
+    }
+
+    if code.starts_with("]") {
+      code = &code[1..];
+      tokens.push(Token::RightBracket);
+      continue;
+    }
+
+    if code.starts_with(",") {
+      code = &code[1..];
+      tokens.push(Token::Comma);
+      continue;
+    }
+
+    if code.starts_with(";") {
+      code = &code[1..];
+      tokens.push(Token::Semicolon);
+      
+    if code.starts_with("<=") {
+      code = &code[2..];
+      tokens.push(Token::LessEqual);
+      continue;
+    }
+
+    if code.starts_with("<") {
+      code = &code[1..];
+      tokens.push(Token::Less);
+      continue;
+    }
+
+    if code.starts_with(">=") {
+      code = &code[2..];
+      tokens.push(Token::GreaterEqual);
+      continue;
+    }
+
+    if code.starts_with(">") {
+      code = &code[1..];
+      tokens.push(Token::Greater);
+      continue;
+    }
+
+    if code.starts_with("!=") {
+      code = &code[2..];
+      tokens.push(Token::NotEqual);
+      continue;
+    }
 
     let (success, token, rest) = lex_identifier(code);
     if success {
@@ -368,14 +450,52 @@ mod tests {
 
     #[test]
     fn lexer_test() {
+
+        let toks = lex("1 <2").unwrap();
+        assert!(toks.len() == 3);
+        assert!(matches!(toks[0], Token::Num(1)));
+        assert!(matches!(toks[1], Token::Less));
+        assert!(matches!(toks[2], Token::Num(2)));
+
+        let toks = lex("1 > 2").unwrap();
+        assert!(toks.len() == 3);
+        assert!(matches!(toks[0], Token::Num(1)));
+        assert!(matches!(toks[1], Token::Greater));
+        assert!(matches!(toks[2], Token::Num(2)));
+
+        let toks = lex("1 <= 2").unwrap();
+        assert!(toks.len() == 3);
+        assert!(matches!(toks[0], Token::Num(1)));
+        assert!(matches!(toks[1], Token::LessEqual));
+        assert!(matches!(toks[2], Token::Num(2)));
+
+        let toks = lex("1>=2").unwrap();
+        assert!(toks.len() == 3);
+        assert!(matches!(toks[0], Token::Num(1)));
+        assert!(matches!(toks[1], Token::GreaterEqual));
+        assert!(matches!(toks[2], Token::Num(2)));
+
+        let toks = lex("1==2").unwrap();
+        assert!(toks.len() == 3);
+        assert!(matches!(toks[0], Token::Num(1)));
+        assert!(matches!(toks[1], Token::Equality));
+        assert!(matches!(toks[2], Token::Num(2)));
+
+        let toks = lex("1!=2").unwrap();
+        assert!(toks.len() == 3);
+        assert!(matches!(toks[0], Token::Num(1)));
+        assert!(matches!(toks[1], Token::NotEqual));
+        assert!(matches!(toks[2], Token::Num(2)));
+
         // test that lexer works on correct cases
         let toks = lex("1 + 2 + 3").unwrap();
-        assert!(toks.len() == 5);
+        assert!(toks.len() == 7);
         assert!(matches!(toks[0], Token::Num(1)));
         assert!(matches!(toks[1], Token::Plus));
         assert!(matches!(toks[2], Token::Num(2)));
         assert!(matches!(toks[3], Token::Plus));
         assert!(matches!(toks[4], Token::Num(3)));
+
 
         let toks = lex("3 + 215 +-").unwrap();
         assert!(toks.len() == 5);
