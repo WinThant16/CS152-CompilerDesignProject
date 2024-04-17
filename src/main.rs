@@ -422,7 +422,7 @@ mod tests {
         assert!(matches!(toks[0], Token::Continue));
 
          //test for comments
-        let toks = lex("# \n 1").unwrap();
+        let toks = lex("#Hello \n 1").unwrap();
         assert!(toks.len() == 1);
         assert!(matches!(toks[0], Token::Num(1)));
     }
