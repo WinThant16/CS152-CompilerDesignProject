@@ -232,6 +232,7 @@ fn lex(mut code: &str) -> Result<Vec<Token>, String> {
     if code.starts_with(";") {
       code = &code[1..];
       tokens.push(Token::Semicolon);
+      continue;
     } 
       
     if code.starts_with("<=") {
