@@ -318,7 +318,8 @@ fn lex_number(code: &str) -> (bool, Token, &str) {
         state = StateMachine::Number;
         success = true;
         index += 1;
-      } else if letter >= 'A' && letter <= 'z' {
+      } else if (letter >= 'A' || letter <= 'Z') && (letter >= 'a' && letter <= 'z'){
+        print!("Invalid token: {}\n", letter as i32);
         return (false, Token::NotToken, "");
       } else {
         let num = code[..index].parse::<i32>().unwrap();
