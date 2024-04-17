@@ -1529,4 +1529,3 @@ enum Bytecode {
     BranchIfn(Op, usize),
 }
 
-
