@@ -308,7 +308,7 @@ fn lex_number(code: &str) -> (bool, Token, &str) {
         state = StateMachine::Number;
         success = true;
         index += 1;
-      } else {
+      }  else {
         return (false, Token::NotToken, "");
       }
     }
@@ -318,6 +318,8 @@ fn lex_number(code: &str) -> (bool, Token, &str) {
         state = StateMachine::Number;
         success = true;
         index += 1;
+      } else if letter >= 'A' && letter <= 'z' {
+        return (false, Token::NotToken, "");
       } else {
         let num = code[..index].parse::<i32>().unwrap();
         return (true, Token::Num(num), &code[index..]);
