@@ -62,6 +62,11 @@ fn main() {
       println!("{:?}", t);
     }
 
+    let mut index: usize = 0;
+    let generated_code_res = parse_program(&tokens, &mut index);
+    let generated_code = generated_code_res.unwrap();
+    //print!("{}",generated_code);
+
 }
 
 // Creating an Enum within Rust.
@@ -488,12 +493,25 @@ fn next_result<'a>(tokens: &'a Vec<Token>, index: &mut usize) -> Result<&'a Toke
 // loop over everything, outputting generated code.
 fn parse_program(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
     loop {
-        match parse_function(tokens, index)? {
-        None => {
+        let token = peek(tokens, *index);
+        match token {
+          None => {
             break;
-        }
-        Some(_) => {}
-        }
+          }
+          Some(token) =>{
+            //let savedIndex = *index;
+            if matches!(*token, Token::Func){
+              parse_function(tokens, index);
+            }else{
+              parse_statement(tokens, index);
+              parse_expression(tokens, index);
+            }
+
+            //if (savedIndex == *index){
+            *index += 1
+            //}
+          }
+        } 
     }
 
     return Ok(());
@@ -507,7 +525,7 @@ fn parse_program(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
 // a loop is done to handle statements.
 
 fn parse_function(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>, String> {
-    
+    print!("parse_function\n");
     match next(tokens, index) {
     None => {
         return Ok(None);
@@ -593,8 +611,10 @@ fn parse_function(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>, 
 // read(a)
 // returns epsilon if '}'
 fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>, String> {
+    print!("parse_statement\n");
     match peek(tokens, *index) {
     None => {
+        print!("parse statement exit (none)\n");
         return Ok(None);
     }
 
@@ -677,6 +697,7 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
 // NOTE: this cannot parse "complex" expressions such as "a + b * c".
 // I leave "a + b * c" as an exercise for the student.
 fn parse_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
+    print!("parse_expression\n");
     parse_term(tokens, index)?;
     match peek_result(tokens, *index)? {
     Token::Plus => {},
