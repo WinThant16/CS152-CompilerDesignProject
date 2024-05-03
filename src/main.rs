@@ -63,9 +63,27 @@ fn main() {
     }
 
     let mut index: usize = 0;
-    let generated_code_res = parse_program(&tokens, &mut index);
-    let generated_code = generated_code_res.unwrap();
-    //print!("{}",generated_code);
+    println!();
+
+    match parse_program(&tokens, &mut index) {
+
+    Ok(()) => {
+        println!("Program Parsed Successfully.");
+    }
+
+    Err(message) => {
+        println!("**Error**");
+        println!("----------------------");
+        if tokens.len() == 0 {
+            println!("No code has been provided.");
+        } else {
+            println!("Error: {message}");
+            println!("----------------------");
+        }
+    }
+
+    }
+
 
 }
 
@@ -78,14 +96,18 @@ fn main() {
 #[derive(Debug, Clone)]
 enum Token {
   NotToken,
+  //math
   Plus,
   Subtract,
   Multiply,
   Divide,
   Modulus,
   Assign,
+
   Num(i32),
   Ident(String),
+  
+  //keywords
   If,
   While,
   Read, 
@@ -96,6 +118,7 @@ enum Token {
   Else,
   Break,
   Continue,
+
   LeftParen,
   RightParen,
   LeftCurly,
@@ -104,6 +127,8 @@ enum Token {
   RightBracket,
   Comma,
   Semicolon,
+  
+  //boolean
   Less,
   LessEqual,
   Greater,
@@ -492,29 +517,23 @@ fn next_result<'a>(tokens: &'a Vec<Token>, index: &mut usize) -> Result<&'a Toke
 // parse programs with multiple functions
 // loop over everything, outputting generated code.
 fn parse_program(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
-    loop {
-        let token = peek(tokens, *index);
-        match token {
-          None => {
-            break;
+  loop {
+      let token = peek(tokens, *index); // Peek at the next token in the sequence
+      match token {
+          None => { // If there are no more tokens, exit the loop
+              break;
           }
-          Some(token) =>{
-            //let savedIndex = *index;
-            if matches!(*token, Token::Func){
-              parse_function(tokens, index);
-            }else{
-              parse_statement(tokens, index);
-              parse_expression(tokens, index);
-            }
-
-            //if (savedIndex == *index){
-            *index += 1
-            //}
+          Some(token) => {
+              if matches!(*token, Token::Func) { // Check if the token is a function declaration
+                  parse_function(tokens, index)?; // If it's a function, parse it
+              } else {
+                  return Err(String::from("Expected function declaration.")); // Otherwise, return an error
+              }
+              *index += 1; // Move to the next token index
           }
-        } 
-    }
-
-    return Ok(());
+      }
+  }
+  return Ok(()); // Return Ok if parsing is successful
 }
 
 // parse function such as:
@@ -523,84 +542,71 @@ fn parse_program(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
 //    # ...
 // }
 // a loop is done to handle statements.
-
 fn parse_function(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>, String> {
-    print!("parse_function\n");
-    match next(tokens, index) {
-    None => {
-        return Ok(None);
-    }
-    Some(token) => {
-        if !matches!(token, Token::Func) {
-            return Err(String::from("functions must begin with func"));
-        }
-    }
-
-    }
-    match next_result(tokens, index)? {
-    Token::Ident(_) => {},
-    _  => {return Err(String::from("functions must have a function identifier"));}
-    };
-
-    if !matches!( next_result(tokens, index)?, Token::LeftParen) {
-        return Err(String::from("expected '('"));
-    }
-
-    loop {
-       match next_result(tokens, index)? {
-
-       Token::RightParen => {
-           break;
-       }
-
-       Token::Int => {
-           match next_result(tokens, index)? {
-           Token::Ident(_) => {
-               match peek_result(tokens, *index)? {
-               Token::Comma => {
-                   *index += 1;
-               }
-               Token::RightParen => {}
-               _ => {
-                   return Err(String::from("expected ',' or ')'"));
-               }
-
-               }
-           }
-           _ => {
-                return Err(String::from("expected ident function parameter"));
-           }
-
-           }
-       }
-
-       _ => {
-           return Err(String::from("expected 'int' keyword or ')' token"));
-       }
-
-       }
-    }
-
-
-    if !matches!(next_result(tokens, index)?, Token::LeftCurly) {
-        return Err(String::from("expected '{'"));
-    }
-
-    loop {
-        match parse_statement(tokens, index)? {
-        None => {
-            break;
-        }
-        Some(()) => {}
-        }
-    }
-
-
-    if !matches!(next_result(tokens, index)?, Token::RightCurly) {
+  print!("parse_function\n");
+  // Check if the next token is 'func'
+  match next(tokens, index) {
+      None => { // If there are no more tokens, return None
+          return Ok(None);
+      }
+      Some(token) => {
+          if !matches!(token, Token::Func) { // If the token is not 'func', return an error
+              return Err(String::from("functions must begin with func"));
+          }
+      }
+  }
+  // Check if the next token is an identifier
+  match next_result(tokens, index)? {
+      Token::Ident(_) => {},
+      _ => { 
+        return Err(String::from("functions must have a function identifier")); 
+      }
+  };
+  // Check if the next token is '('
+  if !matches!( next_result(tokens, index)?, Token::LeftParen) {
+      return Err(String::from("expected '('"));
+  }
+  // Loop to parse function parameters
+  loop {
+      match next_result(tokens, index)? {
+          Token::RightParen => { break; }
+          Token::Int => {
+              match next_result(tokens, index)? {
+                  Token::Ident(_) => {
+                      match peek_result(tokens, *index)? {
+                          Token::Comma => { *index += 1; }
+                          Token::RightParen => {}
+                          _ => { 
+                            return Err(String::from("expected ',' or ')'")); 
+                          }
+                      }
+                  }
+                  _ => { 
+                    return Err(String::from("expected ident function parameter")); 
+                  }
+              }
+          }
+          _ => { 
+            return Err(String::from("expected 'int' keyword or ')' token")); 
+          }
+      }
+  }
+  // Check if the next token is '{'
+  if !matches!(next_result(tokens, index)?, Token::LeftCurly) {
+      return Err(String::from("expected '{'"));
+  }
+  // Loop to parse statements inside the function body
+  loop {
+      match parse_statement(tokens, index)? {
+          None => { break; }
+          Some(()) => {}
+      }
+  }
+  // Check if the next token is '}'
+  if !matches!(next_result(tokens, index)?, Token::RightCurly) {
       return Err(String::from("expected '}'"));
-    }
-
-    return Ok(Some(()));
+  }
+  return Ok(Some(())); // Return Ok if parsing is successful
 }
 
 // parsing a statement such as:
@@ -611,82 +617,79 @@ fn parse_function(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>, 
 // read(a)
 // returns epsilon if '}'
 fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>, String> {
-    print!("parse_statement\n");
-    match peek(tokens, *index) {
-    None => {
-        print!("parse statement exit (none)\n");
-        return Ok(None);
-    }
+  print!("parse_statement\n");
+  match peek(tokens, *index) {
+      None => { // If there are no more tokens, return None
+          print!("parse statement exit (none)\n");
+          return Ok(None);
+      }
+      Some(token) => {
+          match token {
+              // If the token is '}', return None
+              Token::RightCurly => { 
+                return Ok(None); 
+              } 
+              // If the token is 'int', parse variable declaration
+              Token::Int => { 
+                *index += 1;
+                match next_result(tokens, index)? {
+                  Token::Ident(_) => {}
 
-    Some(token) => {
-        match token {
+                  _ => {
+                      return Err(String::from("expected identifier"));
+                  }
 
-        Token::RightCurly => {
-            return Ok(None);
-        }
-
-        Token::Int => {
-            *index += 1;
-            match next_result(tokens, index)? {
-            Token::Ident(_) => {}
-
-            _ => {
-                return Err(String::from("expected identifier"));
-            }
-
-            }
-        }
-
-        Token::Ident(_) => {
-            *index += 1;
-            if !matches!(next_result(tokens, index)?, Token::Assign) {
-                return Err(String::from("expected '=' assignment operator"));
-            }
-            parse_expression(tokens, index)?;
-        }
-
-        Token::Return => {
-            *index += 1;
-            parse_expression(tokens, index)?;
-        }
-
-        Token::Print => {
-            *index += 1;
-            if !matches!(next_result(tokens, index)?, Token::LeftParen) {
-                return Err(String::from("expect '(' closing statement"));
-            }
-            parse_expression(tokens, index)?;
-            if !matches!(next_result(tokens, index)?, Token::RightParen) {
-                return Err(String::from("expect ')' closing statement"));
-            }
-        }
-
-        Token::Read => {
-            *index += 1;
-            if !matches!(next_result(tokens, index)?, Token::LeftParen) {
-                return Err(String::from("expect '(' closing statement"));
-            }
-
-            parse_expression(tokens, index)?;
-
-            if !matches!(next_result(tokens, index)?, Token::RightParen) {
-                return Err(String::from("expect ')' closing statement"));
-            }
-        }
-
-        _ => {
-             return Err(String::from("invalid statement."));
-        }
-
-        }
-        if !matches!(next_result(tokens, index)?, Token::Semicolon) {
-            return Err(String::from("expect ';' closing statement"));
-        }
-
-        return Ok(Some(()));
-    }
-
-    }
+                }
+                // Check if there's an assignment after variable declaration
+                if matches!(peek_result(tokens, *index)?, Token::Assign) {
+                    *index += 1;
+                    parse_expression(tokens, index)?; // Parse the expression after assignment
+                } 
+              }
+              // If the token is an identifier 
+              Token::Ident(_) => { 
+                  *index += 1; // Move to the next token index
+                  if !matches!(next_result(tokens, index)?, Token::Assign) { // If the next token is not '=', return an error
+                      return Err(String::from("expected '=' assignment operator"));
+                  }
+                  parse_expression(tokens, index)?; // Parse the expression
+              }
+              // If the token is 'return', parse the expression
+              Token::Return => { 
+                *index += 1; 
+                parse_expression(tokens, index)?; 
+              }
+              // If the token is 'print' 
+              Token::Print => { 
+                  *index += 1; // Move to the next token index
+                  if !matches!(next_result(tokens, index)?, Token::LeftParen) { // If the next token is not '(', return an error
+                      return Err(String::from("expect '(' closing statement"));
+                  }
+                  parse_expression(tokens, index)?; // Parse the expression
+                  if !matches!(next_result(tokens, index)?, Token::RightParen) { // If the next token is not ')', return an error
+                      return Err(String::from("expect ')' closing statement"));
+                  }
+              }
+              // If the token is 'read'
+              Token::Read => { 
+                  *index += 1; // Move to the next token index
+                  if !matches!(next_result(tokens, index)?, Token::LeftParen) { // If the next token is not '(', return an error
+                      return Err(String::from("expect '(' closing statement"));
+                  }
+                  parse_expression(tokens, index)?; // Parse the expression
+                  if !matches!(next_result(tokens, index)?, Token::RightParen) { // If the next token is not ')', return an error
+                      return Err(String::from("expect ')' closing statement"));
+                  }
+              }
+              // If the token is invalid, return an error
+              _ => { return Err(String::from("invalid statement.")); } 
+          }
+          if !matches!(next_result(tokens, index)?, Token::Semicolon) { // If the next token is not ';', return an error
+              return Err(String::from("expect ';' closing statement"));
+          }
+          return Ok(Some(())); // Return Ok if parsing is successful
+      }
+  }
 }
 
 // parsing a simple expression such as:
@@ -697,44 +700,50 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
 // NOTE: this cannot parse "complex" expressions such as "a + b * c".
 // I leave "a + b * c" as an exercise for the student.
 fn parse_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
-    print!("parse_expression\n");
-    parse_term(tokens, index)?;
+  print!("parse_expression\n");
+  parse_term(tokens, index)?; // Parse the first term
+  // ---------------previous
+  // match peek_result(tokens, *index)? {
+  //     Token::Plus => {}, // If the next token is '+', continue parsing
+  //     Token::Subtract => {}, // If the next token is '-', continue parsing
+  //     Token::Multiply => {}, // If the next token is '*', continue parsing
+  //     Token::Divide => {}, // If the next token is '/', continue parsing
+  //     Token::Modulus => {}, // If the next token is '%', continue parsing
+  //     _ => { return Ok(()); } // Otherwise, return Ok
+  // };
+  // ---------------previous
+  loop {
     match peek_result(tokens, *index)? {
-    Token::Plus => {},
-    Token::Subtract => {},
-    Token::Multiply => {},
-    Token::Divide => {},
-    Token::Modulus => {},
-
-    _ => { 
-        return Ok(()); 
+        Token::Plus | Token::Subtract | Token::Multiply | Token::Divide | Token::Modulus => {
+            *index += 1; // Move to the next token
+            parse_term(tokens, index)?; // Parse the next term
+        }
+        _ => break, // If the next token is not an operator, break the loop
     }
-
-    };
-
-    *index += 1;
-    parse_term(tokens, index)?;
-
-    return Ok(());
+  }
+  
+  return Ok(()); // Return Ok if parsing is successful
 }
+
 
 // a term is either a Number or an Identifier.
 fn parse_term(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
-    match next_result(tokens, index)? {
-
-    Token::Ident(_) => {
+  match next_result(tokens, index)? {
+    Token::Ident(name) => {
+        // Check if the first character of the identifier is a digit
+        if name.chars().next().unwrap().is_digit(10) {
+            return Err(format!("Variable names cannot start with a digit: {}", name));
+        }
+        // Successfully parsed an identifier
         return Ok(());
     }
-
     Token::Num(_) => {
         return Ok(());
     }
-
     _ => {
         return Err(String::from("invalid expression"));
     }
-
-    }
+  }
 }
 
 
@@ -762,6 +771,8 @@ mod tests {
     }
 
 }
+
+
 // writing tests!
 // testing shows robustness in software, and is good for spotting regressions
 // to run a test, type "cargo test" in the terminal.
