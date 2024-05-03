@@ -681,6 +681,33 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
                       return Err(String::from("expect ')' closing statement"));
                   }
               }
+
+              Token::While => { 
+                *index += 1; // Move to the next token index
+                parse_expression(tokens, index)?; // Parse boolean expression
+                if !matches!(next_result(tokens, index)?, Token::RightBracket) { // If the next token is not '{', return an error
+                    return Err(String::from("expect '{' for while loop"));
+                }
+                while !matches!(next_result(tokens, index)?, Token::RightBracket){ // while not right bracket
+                  parse_statement(tokens, index)?;
+                }
+                *index += 1; // matched a }
+              }
+
+              Token::Continue => { 
+                *index += 1; // Move to the next token index
+                if !matches!(next_result(tokens, index)?, Token::Semicolon) { // If the next token is not ';', return an error
+                    return Err(String::from("expect ';' closing statement"));
+                }
+              }
+
+              Token::Break => { 
+                *index += 1; // Move to the next token index
+                if !matches!(next_result(tokens, index)?, Token::Semicolon) { // If the next token is not ';', return an error
+                    return Err(String::from("expect ';' closing statement"));
+                }
+              }
+
               // If the token is invalid, return an error
               _ => { return Err(String::from("invalid statement.")); } 
           }
