@@ -673,7 +673,7 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
                     }
                     Some(Token::LeftBracket) =>{
                         parse_array_form(tokens, index)?;
-                        println!("current tok4: {:?}", tokens[*index]);
+                        //println!("current tok4: {:?}", tokens[*index]);
                         match peek(tokens, *index){
                           Some(Token::Assign) => {
                             // If the next token is '=', parse an assignment
@@ -800,11 +800,17 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
 fn parse_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
   print!("parse_expression\n");
   parse_term(tokens, index)?; // Parse the first term
+  if(matches!(peek_result(tokens, *index)?, Token::LeftBracket)){
+    parse_array_form(tokens, index)?;
+  }
   loop {
     match peek_result(tokens, *index)? {
         Token::Plus | Token::Subtract | Token::Multiply | Token::Divide | Token::Modulus => {
             *index += 1; // Move to the next token
             parse_term(tokens, index)?; // Parse the next term
+            if(matches!(peek_result(tokens, *index)?, Token::LeftBracket)){
+              parse_array_form(tokens, index)?;
+            }
         }
         _ => break, // If the next token is not an operator, break the loop
     }
@@ -814,17 +820,17 @@ fn parse_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String
 }
 
 fn parse_array_form(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
-  println!("current tok: {:?}", tokens[*index]);
-  println!("run parse expression after [");
+  //println!("current tok: {:?}", tokens[*index]);
+  //println!("run parse expression after [");
   if(matches!(peek_result(tokens, *index)?,Token::LeftBracket)){
     *index += 1;
   }
   parse_term(tokens, index)?;
-  println!("current tok2: {:?}", tokens[*index]);
+  //println!("current tok2: {:?}", tokens[*index]);
   if !matches!(next_result(tokens, index)?, Token::RightBracket) {
     return Err(String::from("expected ']'"));
   }
-  println!("after ]: {:?}", tokens[*index]);
+  //println!("after ]: {:?}", tokens[*index]);
   //*index += 1;
 
   return Ok(())
