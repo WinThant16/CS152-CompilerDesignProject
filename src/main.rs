@@ -625,7 +625,22 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
               Token::Int => { 
                 *index += 1;
                 match next_result(tokens, index)? {
-                  Token::Ident(_) => {}
+                  
+                  Token::LeftBracket => {
+                    parse_array_form(tokens, index)?;
+                    match peek(tokens, *index) {
+                      Some(Token::Ident(_)) => {
+                        *index += 1;
+                      }
+                      _ => {
+                        return Err(String::from("expected identifier"));
+                      }
+                    }
+                  }
+
+                  Token::Ident(_) => {
+                    //println!("bsdgdfsdf");
+                  }
 
                   _ => {
                       return Err(String::from("expected identifier"));
@@ -655,6 +670,27 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
                         // If the next token is a boolean operator, parse a boolean expression
                         //println!("parse boolean expression after variable declaration\n");
                         parse_boolean_expression(tokens, index)?;
+                    }
+                    Some(Token::LeftBracket) =>{
+                        parse_array_form(tokens, index)?;
+                        println!("current tok4: {:?}", tokens[*index]);
+                        match peek(tokens, *index){
+                          Some(Token::Assign) => {
+                            // If the next token is '=', parse an assignment
+                            *index += 1;
+                            //println!("parse expression after identifier");
+                            parse_expression(tokens, index)?;
+                          }
+                          Some(Token::Less) | Some(Token::LessEqual) | Some(Token::Greater) | Some(Token::GreaterEqual) | Some(Token::Equality) | Some(Token::NotEqual) => {
+                            // If the next token is a boolean operator, parse a boolean expression
+                            //println!("parse boolean expression after variable declaration\n");
+                            parse_boolean_expression(tokens, index)?;
+                          }
+                          _ => {
+                            return Err(String::from("unexpected token after identifier []"));
+                        }
+                        }
+
                     }
                     _ => {
                         return Err(String::from("unexpected token after identifier"));
@@ -690,6 +726,7 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
               }
 
               Token::While => { 
+                //println!("While");
                 *index += 1; // Move to the next token index
                 parse_boolean_expression(tokens, index)?; // Parse boolean expression
                 //println!("parsed");
@@ -706,6 +743,7 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
               }
 
               Token::If => { 
+                //println!("if");
                 *index += 1; // Move to the next token index
                 parse_boolean_expression(tokens, index)?; // Parse boolean expression
                 if !matches!(next_result(tokens, index)?, Token::LeftCurly) { // If the next token is not '{', return an error
@@ -739,11 +777,12 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
               // If the token is invalid, return an error
               
               _ => {
-                //println!("Token at invalid statement: {:?}", tokens[*index]);
+                println!("Token at invalid statement: {:?}", tokens[*index]);
                 return Err(String::from("invalid statement.")); } 
           }
+          //println!("before ; : {:?}", tokens[*index]);
           if !matches!(next_result(tokens, index)?, Token::Semicolon) { // If the next token is not ';', return an error
-              //println!("not ; : {:?}", tokens[*index]);
+              println!("not ; : {:?}", tokens[*index]);
               return Err(String::from("expect ';' closing statement after statement"));
           }
           return Ok(Some(())); // Return Ok if parsing is successful
@@ -774,15 +813,42 @@ fn parse_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String
   return Ok(()); // Return Ok if parsing is successful
 }
 
+fn parse_array_form(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
+  println!("current tok: {:?}", tokens[*index]);
+  println!("run parse expression after [");
+  if(matches!(peek_result(tokens, *index)?,Token::LeftBracket)){
+    *index += 1;
+  }
+  parse_term(tokens, index)?;
+  println!("current tok2: {:?}", tokens[*index]);
+  if !matches!(next_result(tokens, index)?, Token::RightBracket) {
+    return Err(String::from("expected ']'"));
+  }
+  println!("after ]: {:?}", tokens[*index]);
+  //*index += 1;
+
+  return Ok(())
+}
+
 fn parse_boolean_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
   print!("parse_boolean_expression\n");
+  //println!("term: {:?}", tokens[*index]);
   parse_term(tokens, index)?; // Parse the left side of the expression
+  //println!("parsed : {:?}", tokens[*index]);
+
+  if(matches!(peek_result(tokens, *index)?,Token::LeftBracket)){
+    parse_array_form(tokens,index)?;
+  }
+
   match peek_result(tokens, *index)? {
       Token::Less | Token::LessEqual | Token::Greater | Token::GreaterEqual | Token::Equality | Token::NotEqual => {
           *index += 1; // Move to the next token
           parse_term(tokens, index)?; // Parse the right side of the expression
       }
-      _ => return Err(String::from("expected boolean operator")),
+      _ => {
+        println!("not boolean operator : {:?}", tokens[*index]);
+        return Err(String::from("expected boolean operator"))
+      },
   }
   return Ok(());
 }
