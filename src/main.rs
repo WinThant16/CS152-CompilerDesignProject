@@ -518,22 +518,14 @@ fn next_result<'a>(tokens: &'a Vec<Token>, index: &mut usize) -> Result<&'a Toke
 // loop over everything, outputting generated code.
 fn parse_program(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
   loop {
-      let token = peek(tokens, *index); // Peek at the next token in the sequence
-      match token {
-          None => { // If there are no more tokens, exit the loop
-              break;
-          }
-          Some(token) => {
-              if matches!(*token, Token::Func) { // Check if the token is a function declaration
-                  parse_function(tokens, index)?; // If it's a function, parse it
-              } else {
-                  return Err(String::from("Expected function declaration.")); // Otherwise, return an error
-              }
-              *index += 1; // Move to the next token index
-          }
+      match parse_function(tokens, index)? {
+      None => {
+          break;
+      }
+      Some(_) => {}
       }
   }
-  return Ok(()); // Return Ok if parsing is successful
+  return Ok(());
 }
 
 // parse function such as:
@@ -710,6 +702,29 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
                   parse_statement(tokens, index)?;
                 }
                 *index += 1; // matched a }
+                return Ok(Some(())); // skip ; check
+              }
+
+              Token::If => { 
+                *index += 1; // Move to the next token index
+                parse_boolean_expression(tokens, index)?; // Parse boolean expression
+                if !matches!(next_result(tokens, index)?, Token::LeftCurly) { // If the next token is not '{', return an error
+                  return Err(String::from("expect '{' closing statement"));
+                }
+                while !matches!(peek_result(tokens, *index)?, Token::RightCurly){ // while not right bracket
+                  parse_statement(tokens, index)?;
+                }
+                *index += 1; 
+                if matches!(peek_result(tokens, *index)?, Token::Else) { 
+                  *index += 1; // Move to the next token index
+                  if !matches!(next_result(tokens, index)?, Token::LeftCurly) { // If the next token is not '{', return an error
+                  return Err(String::from("expect '{' closing statement"));
+                  }
+                  while !matches!(peek_result(tokens, *index)?, Token::RightCurly){ // while not right bracket
+                    parse_statement(tokens, index)?;
+                  }
+                  *index += 1;
+                }
                 return Ok(Some(())); // skip ; check
               }
 
