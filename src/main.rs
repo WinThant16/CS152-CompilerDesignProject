@@ -62,6 +62,29 @@ fn main() {
       println!("{:?}", t);
     }
 
+    let mut index: usize = 0;
+    println!();
+
+    match parse_program(&tokens, &mut index) {
+
+    Ok(()) => {
+        println!("Program Parsed Successfully.");
+    }
+
+    Err(message) => {
+        println!("**Error**");
+        println!("----------------------");
+        if tokens.len() == 0 {
+            println!("No code has been provided.");
+        } else {
+            println!("Error: {message}");
+            println!("----------------------");
+        }
+    }
+
+    }
+
+
 }
 
 // Creating an Enum within Rust.
@@ -73,14 +96,18 @@ fn main() {
 #[derive(Debug, Clone)]
 enum Token {
   NotToken,
+  //math
   Plus,
   Subtract,
   Multiply,
   Divide,
   Modulus,
   Assign,
+
   Num(i32),
   Ident(String),
+  
+  //keywords
   If,
   While,
   Read, 
@@ -91,6 +118,7 @@ enum Token {
   Else,
   Break,
   Continue,
+
   LeftParen,
   RightParen,
   LeftCurly,
@@ -99,6 +127,8 @@ enum Token {
   RightBracket,
   Comma,
   Semicolon,
+  
+  //boolean
   Less,
   LessEqual,
   Greater,
@@ -444,6 +474,303 @@ fn create_identifier(code: &str) -> Token {
   }
 }
 
+
+
+// the <'a> is the "lifetimes" type annotations in Rust.
+//
+fn peek<'a>(tokens: &'a Vec<Token>, index: usize) -> Option<&'a Token> {
+    if index < tokens.len() {
+        return Some(&tokens[index])
+    } else {
+        return None
+    }
+}
+
+fn peek_result<'a>(tokens: &'a Vec<Token>, index: usize) -> Result<&'a Token, String> {
+    if index < tokens.len() {
+        return Ok(&tokens[index])
+    } else {
+        return Err(String::from("expected a token, but got nothing"))
+    }
+}
+
+fn next<'a>(tokens: &'a Vec<Token>, index: &mut usize) -> Option<&'a Token> {
+    if *index < tokens.len() {
+        let ret = *index;
+        *index += 1;
+        return Some(&tokens[ret])
+    } else {
+        return None
+    }
+}
+
+fn next_result<'a>(tokens: &'a Vec<Token>, index: &mut usize) -> Result<&'a Token, String> {
+    if *index < tokens.len() {
+        let ret = *index;
+        *index += 1;
+        return Ok(&tokens[ret])
+    } else {
+        return Err(String::from("expected a token, but got nothing"))
+    }
+}
+
+// parse programs with multiple functions
+// loop over everything, outputting generated code.
+fn parse_program(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
+  loop {
+      let token = peek(tokens, *index); // Peek at the next token in the sequence
+      match token {
+          None => { // If there are no more tokens, exit the loop
+              break;
+          }
+          Some(token) => {
+              if matches!(*token, Token::Func) { // Check if the token is a function declaration
+                  parse_function(tokens, index)?; // If it's a function, parse it
+              } else {
+                  return Err(String::from("Expected function declaration.")); // Otherwise, return an error
+              }
+              *index += 1; // Move to the next token index
+          }
+      }
+  }
+  return Ok(()); // Return Ok if parsing is successful
+}
+
+// parse function such as:
+// func main(int a, int b) {
+//    # ... statements here...
+//    # ...
+// }
+// a loop is done to handle statements.
+fn parse_function(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>, String> {
+  print!("parse_function\n");
+  // Check if the next token is 'func'
+  match next(tokens, index) {
+      None => { // If there are no more tokens, return None
+          return Ok(None);
+      }
+      Some(token) => {
+          if !matches!(token, Token::Func) { // If the token is not 'func', return an error
+              return Err(String::from("functions must begin with func"));
+          }
+      }
+  }
+  // Check if the next token is an identifier
+  match next_result(tokens, index)? {
+      Token::Ident(_) => {},
+      _ => { 
+        return Err(String::from("functions must have a function identifier")); 
+      }
+  };
+  // Check if the next token is '('
+  if !matches!( next_result(tokens, index)?, Token::LeftParen) {
+      return Err(String::from("expected '('"));
+  }
+  // Loop to parse function parameters
+  loop {
+      match next_result(tokens, index)? {
+          Token::RightParen => { break; }
+          Token::Int => {
+              match next_result(tokens, index)? {
+                  Token::Ident(_) => {
+                      match peek_result(tokens, *index)? {
+                          Token::Comma => { *index += 1; }
+                          Token::RightParen => {}
+                          _ => { 
+                            return Err(String::from("expected ',' or ')'")); 
+                          }
+                      }
+                  }
+                  _ => { 
+                    return Err(String::from("expected ident function parameter")); 
+                  }
+              }
+          }
+          _ => { 
+            return Err(String::from("expected 'int' keyword or ')' token")); 
+          }
+      }
+  }
+  // Check if the next token is '{'
+  if !matches!(next_result(tokens, index)?, Token::LeftCurly) {
+      return Err(String::from("expected '{'"));
+  }
+  // Loop to parse statements inside the function body
+  loop {
+      match parse_statement(tokens, index)? {
+          None => { break; }
+          Some(()) => {}
+      }
+  }
+  // Check if the next token is '}'
+  if !matches!(next_result(tokens, index)?, Token::RightCurly) {
+      return Err(String::from("expected '}'"));
+  }
+  return Ok(Some(())); // Return Ok if parsing is successful
+}
+
+// parsing a statement such as:
+// int a;
+// a = a + b;
+// a = a % b;
+// print(a)
+// read(a)
+// returns epsilon if '}'
+fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>, String> {
+  print!("parse_statement\n");
+  match peek(tokens, *index) {
+      None => { // If there are no more tokens, return None
+          print!("parse statement exit (none)\n");
+          return Ok(None);
+      }
+      Some(token) => {
+          match token {
+              // If the token is '}', return None
+              Token::RightCurly => { 
+                return Ok(None); 
+              } 
+              // If the token is 'int', parse variable declaration
+              Token::Int => { 
+                *index += 1;
+                match next_result(tokens, index)? {
+                  Token::Ident(_) => {}
+
+                  _ => {
+                      return Err(String::from("expected identifier"));
+                  }
+
+                }
+                // Check if there's an assignment after variable declaration
+                if matches!(peek_result(tokens, *index)?, Token::Assign) {
+                    *index += 1;
+                    parse_expression(tokens, index)?; // Parse the expression after assignment
+                } 
+              }
+              
+              // If the token is an identifier
+              Token::Ident(_) => {
+                *index += 1; // Move to the next token index
+                // Check the next token
+                match peek(tokens, *index) {
+                    Some(Token::Assign) => {
+                        // If the next token is '=', parse an assignment
+                        *index += 1;
+                        parse_expression(tokens, index)?;
+                    }
+                    Some(Token::Less) | Some(Token::LessEqual) | Some(Token::Greater) | Some(Token::GreaterEqual) | Some(Token::Equality) | Some(Token::NotEqual) => {
+                        // If the next token is a boolean operator, parse a boolean expression
+                        parse_boolean_expression(tokens, index)?;
+                    }
+                    _ => {
+                        return Err(String::from("unexpected token after identifier"));
+                    }
+                }
+              }
+              // If the token is 'return', parse the expression
+              Token::Return => { 
+                *index += 1; 
+                parse_expression(tokens, index)?; 
+              }
+              // If the token is 'print' 
+              Token::Print => { 
+                  *index += 1; // Move to the next token index
+                  if !matches!(next_result(tokens, index)?, Token::LeftParen) { // If the next token is not '(', return an error
+                      return Err(String::from("expect '(' closing statement"));
+                  }
+                  parse_expression(tokens, index)?; // Parse the expression
+                  if !matches!(next_result(tokens, index)?, Token::RightParen) { // If the next token is not ')', return an error
+                      return Err(String::from("expect ')' closing statement"));
+                  }
+              }
+              // If the token is 'read'
+              Token::Read => { 
+                  *index += 1; // Move to the next token index
+                  if !matches!(next_result(tokens, index)?, Token::LeftParen) { // If the next token is not '(', return an error
+                      return Err(String::from("expect '(' closing statement"));
+                  }
+                  parse_expression(tokens, index)?; // Parse the expression
+                  if !matches!(next_result(tokens, index)?, Token::RightParen) { // If the next token is not ')', return an error
+                      return Err(String::from("expect ')' closing statement"));
+                  }
+              }
+              // If the token is invalid, return an error
+              _ => { return Err(String::from("invalid statement.")); } 
+          }
+          if !matches!(next_result(tokens, index)?, Token::Semicolon) { // If the next token is not ';', return an error
+              return Err(String::from("expect ';' closing statement"));
+          }
+          return Ok(Some(())); // Return Ok if parsing is successful
+      }
+  }
+}
+
+// parsing a simple expression such as:
+// "a" (alone)
+// "a + b"
+// "a * b"
+// "a - b"
+// NOTE: this cannot parse "complex" expressions such as "a + b * c".
+// I leave "a + b * c" as an exercise for the student.
+fn parse_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
+  print!("parse_expression\n");
+  parse_term(tokens, index)?; // Parse the first term
+  loop {
+    match peek_result(tokens, *index)? {
+        Token::Plus | Token::Subtract | Token::Multiply | Token::Divide | Token::Modulus => {
+            *index += 1; // Move to the next token
+            parse_term(tokens, index)?; // Parse the next term
+        }
+        _ => break, // If the next token is not an operator, break the loop
+    }
+  }
+  
+  return Ok(()); // Return Ok if parsing is successful
+}
+
+fn parse_boolean_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
+  // parse_term(tokens, index)?; // Parse the left side of the expression
+  match peek_result(tokens, *index)? {
+      Token::Less | Token::LessEqual | Token::Greater | Token::GreaterEqual | Token::Equality | Token::NotEqual => {
+          *index += 1; // Move to the next token
+          parse_term(tokens, index)?; // Parse the right side of the expression
+      }
+      _ => return Err(String::from("expected boolean operator")),
+  }
+  return Ok(());
+}
+
+
+
+// a term is either a Number or an Identifier.
+fn parse_term(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
+  match next_result(tokens, index)? {
+    Token::Ident(name) => {
+        // Check if the first character of the identifier is a digit
+        if name.chars().next().unwrap().is_digit(10) {
+            return Err(format!("Variable names cannot start with a digit: {}", name));
+        }
+        // Successfully parsed an identifier
+        return Ok(());
+    }
+    Token::Num(_) => {
+        return Ok(());
+    }
+    Token::LeftParen => {
+      // Parse the expression inside the parentheses
+      parse_expression(tokens, index)?;
+      // Check if the next token is a right parenthesis
+      if let Token::RightParen = next_result(tokens, index)? {
+          return Ok(());
+      } else {
+          return Err(String::from("Expecting ')' after '('"));
+      }
+    }
+    _ => {
+        return Err(String::from("invalid expression"));
+    }
+  }
+}
+
 // writing tests!
 // testing shows robustness in software, and is good for spotting regressions
 // to run a test, type "cargo test" in the terminal.
@@ -552,4 +879,69 @@ mod tests {
         assert!(matches!(toks[0], Token::Num(1)));
     }
 
+}
+
+#[cfg(test)]
+mod parser_tests {
+    use crate::{lex, parse_statement, Token};
+
+    #[test]
+    fn test_assignment() {
+        // Test valid assignments
+        let tokens = lex("a = 1 + 2;").unwrap();
+        parse_statement(&tokens, &mut 0).unwrap();
+
+        // Test assignment with a boolean expression
+        let tokens = lex("b = a > 5;").unwrap();
+        parse_statement(&tokens, &mut 0).unwrap();
+
+        // Test assignment with a parenthesized expression
+        let tokens = lex("c = (a * 3);").unwrap();
+        parse_statement(&tokens, &mut 0).unwrap();
+
+        // Test assignment with multiple operators
+        let tokens = lex("d = (a + b) / (c - 1);").unwrap();
+        parse_statement(&tokens, &mut 0).unwrap();
+    }
+
+    #[test]
+    fn test_error_handling() {
+        // Test missing semicolon
+        let tokens = lex("e = a + b").unwrap();
+        assert!(matches!(parse_statement(&tokens, &mut 0), Err(_)));
+
+        // Test invalid expression
+        let tokens = lex("f = a * ;").unwrap();
+        assert!(matches!(parse_statement(&tokens, &mut 0), Err(_)));
+
+        // Test assignment with an invalid identifier
+        let tokens = lex("3 = a + b;").unwrap();
+        assert!(matches!(parse_statement(&tokens, &mut 0), Err(_)));
+    }
+
+    #[test]
+    fn test_control_flow() {
+        // Test if statement
+        let tokens = lex("if a > 5 { b = 10; } else { b = 5; }").unwrap();
+        parse_statement(&tokens, &mut 0).unwrap();
+
+        // Test while loop
+        let tokens = lex("while a < 10 { a = a + 1; }").unwrap();
+        parse_statement(&tokens, &mut 0).unwrap();
+
+        // Test for loop
+        let tokens = lex("for i = 0; i < 10; i = i + 1 { println(i); }").unwrap();
+        parse_statement(&tokens, &mut 0).unwrap();
+    }
+
+    #[test]
+    fn test_function_definition() {
+        // Test function definition
+        let tokens = lex("fn add(x, y) { return x + y; }").unwrap();
+        parse_statement(&tokens, &mut 0).unwrap();
+
+        // Test function call
+        let tokens = lex("result = add(3, 5);").unwrap();
+        parse_statement(&tokens, &mut 0).unwrap();
+    }
 }
