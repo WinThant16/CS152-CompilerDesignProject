@@ -643,6 +643,7 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
                 // Check if there's an assignment after variable declaration
                 if matches!(peek_result(tokens, *index)?, Token::Assign) {
                     *index += 1;
+                    //println!("parse expression after variable declaration\n");
                     parse_expression(tokens, index)?; // Parse the expression after assignment
                 } 
               }
@@ -655,10 +656,12 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
                     Some(Token::Assign) => {
                         // If the next token is '=', parse an assignment
                         *index += 1;
+                        //println!("parse expression after identifier");
                         parse_expression(tokens, index)?;
                     }
                     Some(Token::Less) | Some(Token::LessEqual) | Some(Token::Greater) | Some(Token::GreaterEqual) | Some(Token::Equality) | Some(Token::NotEqual) => {
                         // If the next token is a boolean operator, parse a boolean expression
+                        //println!("parse boolean expression after variable declaration\n");
                         parse_boolean_expression(tokens, index)?;
                     }
                     _ => {
@@ -693,11 +696,40 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
                       return Err(String::from("expect ')' closing statement"));
                   }
               }
+
+              Token::While => { 
+                *index += 1; // Move to the next token index
+                parse_boolean_expression(tokens, index)?; // Parse boolean expression
+                //println!("parsed");
+                if !matches!(next_result(tokens, index)?, Token::LeftCurly) { // If the next token is not '{', return an error
+                    return Err(String::from("expect '{' for while loop"));
+                }
+                //println!("after left curly: {:?}", tokens[*index]);
+                while !matches!(peek_result(tokens, *index)?, Token::RightCurly){ // while not right bracket
+                  //println!("not right bracket: {:?}", tokens[*index]);
+                  parse_statement(tokens, index)?;
+                }
+                *index += 1; // matched a }
+                return Ok(Some(())); // skip ; check
+              }
+
+              Token::Continue => { 
+                *index += 1; // Move to the next token index
+              }
+
+              Token::Break => { 
+                *index += 1; // Move to the next token index
+              }
+
               // If the token is invalid, return an error
-              _ => { return Err(String::from("invalid statement.")); } 
+              
+              _ => {
+                //println!("Token at invalid statement: {:?}", tokens[*index]);
+                return Err(String::from("invalid statement.")); } 
           }
           if !matches!(next_result(tokens, index)?, Token::Semicolon) { // If the next token is not ';', return an error
-              return Err(String::from("expect ';' closing statement"));
+              //println!("not ; : {:?}", tokens[*index]);
+              return Err(String::from("expect ';' closing statement after statement"));
           }
           return Ok(Some(())); // Return Ok if parsing is successful
       }
@@ -728,7 +760,8 @@ fn parse_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String
 }
 
 fn parse_boolean_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
-  // parse_term(tokens, index)?; // Parse the left side of the expression
+  print!("parse_boolean_expression\n");
+  parse_term(tokens, index)?; // Parse the left side of the expression
   match peek_result(tokens, *index)? {
       Token::Less | Token::LessEqual | Token::Greater | Token::GreaterEqual | Token::Equality | Token::NotEqual => {
           *index += 1; // Move to the next token
@@ -738,7 +771,6 @@ fn parse_boolean_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<()
   }
   return Ok(());
 }
-
 
 
 // a term is either a Number or an Identifier.
