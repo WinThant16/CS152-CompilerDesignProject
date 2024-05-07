@@ -8,6 +8,8 @@ use std::env;
 // used to interact with the file system
 use std::fs;
 
+mod interpreter;
+
 fn main() {
 
     // Let us get commandline arguments and store them in a Vec<String>
@@ -83,7 +85,9 @@ fn main() {
     }
 
     }
-
+    
+    let generated_code: String = parse(tokens)?;
+    interpreter::execute_ir(&generated_code);
 
 }
 
@@ -517,15 +521,18 @@ fn next_result<'a>(tokens: &'a Vec<Token>, index: &mut usize) -> Result<&'a Toke
 // parse programs with multiple functions
 // loop over everything, outputting generated code.
 fn parse_program(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
+  let mut generated_code = String::from("");
   loop {
       match parse_function(tokens, index)? {
       None => {
           break;
       }
-      Some(_) => {}
+      Some(func_code) => {
+        generated_code += &func_code;
+      }
       }
   }
-  return Ok(());
+  return Ok(generated_code);
 }
 
 // parse function such as:
