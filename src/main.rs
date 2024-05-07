@@ -555,8 +555,8 @@ fn parse_function(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>, 
       }
   }
   // Check if the next token is an identifier
-  match next_result(tokens, index)? {
-      Token::Ident(_) => {},
+  let func_ident = match next_result(tokens, index)? {
+      Token::Ident(func_ident) => func_ident,
       _ => { 
         return Err(String::from("functions must have a function identifier")); 
       }
@@ -565,14 +565,19 @@ fn parse_function(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>, 
   if !matches!( next_result(tokens, index)?, Token::LeftParen) {
       return Err(String::from("expected '('"));
   }
+  
+  let mut code = format!("%func {}\n", func_ident);
+  let mut params: Vec<String> = vec![];
+
   // Loop to parse function parameters
   loop {
       match next_result(tokens, index)? {
           Token::RightParen => { break; }
           Token::Int => {
               match next_result(tokens, index)? {
-                  Token::Ident(_) => {
-                      match peek_result(tokens, *index)? {
+                  Token::Ident(param) => {
+                    params.push(param.clone());  
+                    match peek_result(tokens, *index)? {
                           Token::Comma => { *index += 1; }
                           Token::RightParen => {}
                           _ => { 
@@ -598,14 +603,17 @@ fn parse_function(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>, 
   loop {
       match parse_statement(tokens, index)? {
           None => { break; }
-          Some(()) => {}
+          Some(statement) => {
+            code += &statement;
+          }
       }
   }
+  code += "%endfunc\n\n";
   // Check if the next token is '}'
   if !matches!(next_result(tokens, index)?, Token::RightCurly) {
       return Err(String::from("expected '}'"));
   }
-  return Ok(Some(())); // Return Ok if parsing is successful
+  return Ok(Some(code)); // Return Ok if parsing is successful
 }
 
 // parsing a statement such as:
