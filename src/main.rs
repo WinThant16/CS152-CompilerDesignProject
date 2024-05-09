@@ -10,6 +10,20 @@ use std::fs;
 
 mod interpreter;
 
+struct Expression {
+  code: String,
+  name: String,
+}
+
+static mut VAR_NUM: i64 = 0;
+fn create_temp() -> String {
+  unsafe {
+      VAR_NUM += 1;
+      format!("_temp{}", VAR_NUM)
+  }
+}
+
+
 fn main() {
 
     // Let us get commandline arguments and store them in a Vec<String>
@@ -69,8 +83,11 @@ fn main() {
 
     match parse_program(&tokens, &mut index) {
 
-    Ok(()) => {
+    Ok(generated_code) => {
         println!("Program Parsed Successfully.");
+        println!("{}",&generated_code);
+        // let generated_code: String = parse(tokens)?;
+        interpreter::execute_ir(&generated_code);
     }
 
     Err(message) => {
@@ -86,8 +103,7 @@ fn main() {
 
     }
     
-    let generated_code: String = parse(tokens)?;
-    interpreter::execute_ir(&generated_code);
+    // 
 
 }
 
@@ -520,7 +536,7 @@ fn next_result<'a>(tokens: &'a Vec<Token>, index: &mut usize) -> Result<&'a Toke
 
 // parse programs with multiple functions
 // loop over everything, outputting generated code.
-fn parse_program(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
+fn parse_program(tokens: &Vec<Token>, index: &mut usize) -> Result<String, String> {
   let mut generated_code = String::from("");
   loop {
       match parse_function(tokens, index)? {
@@ -541,7 +557,7 @@ fn parse_program(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
 //    # ...
 // }
 // a loop is done to handle statements.
-fn parse_function(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>, String> {
+fn parse_function(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<String>, String> {
   print!("parse_function\n");
   // Check if the next token is 'func'
   match next(tokens, index) {
@@ -623,7 +639,7 @@ fn parse_function(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>, 
 // print(a)
 // read(a)
 // returns epsilon if '}'
-fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>, String> {
+fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<String>, String> {
   print!("parse_statement\n");
   match peek(tokens, *index) {
       None => { // If there are no more tokens, return None
@@ -631,21 +647,33 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
           return Ok(None);
       }
       Some(token) => {
+        let codenode: Option<String>;
           match token {
               // If the token is '}', return None
-              Token::RightCurly => { 
-                return Ok(None); 
+              Token::RightCurly => {
+                codenode = None;
+                return Ok(codenode); 
               } 
               // If the token is 'int', parse variable declaration
               Token::Int => { 
                 *index += 1;
                 match next_result(tokens, index)? {
                   
+                  // need to return intermediate code for arrays here
                   Token::LeftBracket => {
-                    parse_array_form(tokens, index)?;
+                    let array_param = parse_array_form(tokens, index)?;
                     match peek(tokens, *index) {
-                      Some(Token::Ident(_)) => {
+                      Some(Token::Ident(ident)) => {
                         *index += 1;
+                        // let m_expr = parse_term(tokens, index)?; // Parse the next term
+                        // let t = create_temp();
+                        // let instr = format!("%int {}\n{opcode} {}, {}, {}\n", t, t, expr.name, m_expr.name);
+                        // expr.code += &m_expr.code;
+                        // expr.code += &instr;
+                        // expr.name = t;
+
+                        let statement = format!("%int[] {}, {}\n", ident, array_param.name);
+                        codenode = Some(statement);
                       }
                       _ => {
                         return Err(String::from("expected identifier"));
@@ -653,7 +681,9 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
                     }
                   }
 
-                  Token::Ident(_) => {
+                  Token::Ident(ident) => {
+                    let statement = format!("%int {}\n", ident);
+                    codenode = Some(statement);
                     //println!("bsdgdfsdf");
                   }
 
@@ -662,71 +692,88 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
                   }
 
                 }
-                // Check if there's an assignment after variable declaration
-                if matches!(peek_result(tokens, *index)?, Token::Assign) {
-                    *index += 1;
+                // <NOT REQUIRED/PART OF PROMPT> Check if there's an assignment after variable declaration
+                //if matches!(peek_result(tokens, *index)?, Token::Assign) {
+                 //   *index += 1;
                     //println!("parse expression after variable declaration\n");
-                    parse_expression(tokens, index)?; // Parse the expression after assignment
-                } 
+                //} 
+                
               }
               
               // If the token is an identifier
-              Token::Ident(_) => {
+              Token::Ident(ident) => {
                 *index += 1; // Move to the next token index
                 // Check the next token
                 match peek(tokens, *index) {
                     Some(Token::Assign) => {
                         // If the next token is '=', parse an assignment
                         *index += 1;
-                        //println!("parse expression after identifier");
-                        parse_expression(tokens, index)?;
+                        println!("parse expression after identifier");
+                        let expr = parse_expression(tokens, index)?;
+                        let code = format!("{}%mov {}, {}\n", expr.code, ident, expr.name);
+                        codenode = Some(code);
+                        // codenode = None;
+                        
                     }
                     Some(Token::Less) | Some(Token::LessEqual) | Some(Token::Greater) | Some(Token::GreaterEqual) | Some(Token::Equality) | Some(Token::NotEqual) => {
                         // If the next token is a boolean operator, parse a boolean expression
                         //println!("parse boolean expression after variable declaration\n");
-                        parse_boolean_expression(tokens, index)?;
+                        // parse_boolean_expression(tokens, index)?;
+                        let bool_expr = parse_boolean_expression(tokens, index)?;
+                        let code = format!("{}%mov {}\n", bool_expr.code, bool_expr.name);
+                        codenode = Some(code);
                     }
                     Some(Token::LeftBracket) =>{
-                        parse_array_form(tokens, index)?;
+                        let array_param =parse_array_form(tokens, index)?;
                         //println!("current tok4: {:?}", tokens[*index]);
                         match peek(tokens, *index){
                           Some(Token::Assign) => {
                             // If the next token is '=', parse an assignment
                             *index += 1;
                             //println!("parse expression after identifier");
-                            parse_expression(tokens, index)?;
+                            // parse_expression(tokens, index)?;
+                            let expr = parse_expression(tokens, index)?;
+                            let code = format!("{}%mov [{} + {}], {}\n", expr.code, ident, array_param.name, expr.name);
+                            codenode = Some(code);
                           }
                           Some(Token::Less) | Some(Token::LessEqual) | Some(Token::Greater) | Some(Token::GreaterEqual) | Some(Token::Equality) | Some(Token::NotEqual) => {
                             // If the next token is a boolean operator, parse a boolean expression
                             //println!("parse boolean expression after variable declaration\n");
-                            parse_boolean_expression(tokens, index)?;
+                            // parse_boolean_expression(tokens, index)?;
+                            let bool_expr = parse_boolean_expression(tokens, index)?;
+                            let code = format!("{}%mov {}\n", bool_expr.code, bool_expr.name);
+                            codenode = Some(code);
                           }
                           _ => {
+                            codenode = None;
                             return Err(String::from("unexpected token after identifier []"));
                         }
                         }
 
                     }
                     _ => {
+                        codenode = None;
                         return Err(String::from("unexpected token after identifier"));
                     }
                 }
               }
               // If the token is 'return', parse the expression
-              Token::Return => { 
+              /*Token::Return => { 
                 *index += 1; 
                 parse_expression(tokens, index)?; 
-              }
+              }*/
               // If the token is 'print' 
               Token::Print => { 
                   *index += 1; // Move to the next token index
                   if !matches!(next_result(tokens, index)?, Token::LeftParen) { // If the next token is not '(', return an error
                       return Err(String::from("expect '(' closing statement"));
                   }
-                  parse_expression(tokens, index)?; // Parse the expression
+                  let expr = parse_expression(tokens, index)?;
+                  let code = format!("{}%out {}\n", expr.code, expr.name);
                   if !matches!(next_result(tokens, index)?, Token::RightParen) { // If the next token is not ')', return an error
                       return Err(String::from("expect ')' closing statement"));
                   }
+                  codenode = Some(code)
               }
               // If the token is 'read'
               Token::Read => { 
@@ -734,12 +781,14 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
                   if !matches!(next_result(tokens, index)?, Token::LeftParen) { // If the next token is not '(', return an error
                       return Err(String::from("expect '(' closing statement"));
                   }
-                  parse_expression(tokens, index)?; // Parse the expression
+                  let expr = parse_expression(tokens, index)?;
+                  let code = format!("{}%input {}\n", expr.code, expr.name);
                   if !matches!(next_result(tokens, index)?, Token::RightParen) { // If the next token is not ')', return an error
                       return Err(String::from("expect ')' closing statement"));
                   }
+                  codenode = Some(code);
               }
-
+/* 
               Token::While => { 
                 //println!("While");
                 *index += 1; // Move to the next token index
@@ -754,7 +803,7 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
                   parse_statement(tokens, index)?;
                 }
                 *index += 1; // matched a }
-                return Ok(Some(())); // skip ; check
+                return Ok(Some(String::from("TODO:While"))); // skip ; check
               }
 
               Token::If => { 
@@ -778,7 +827,7 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
                   }
                   *index += 1;
                 }
-                return Ok(Some(())); // skip ; check
+                return Ok(Some(String::from("TODO:IF"))); // skip ; check
               }
 
               Token::Continue => { 
@@ -788,10 +837,11 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
               Token::Break => { 
                 *index += 1; // Move to the next token index
               }
-
+*/
               // If the token is invalid, return an error
               
               _ => {
+                codenode = None;
                 println!("Token at invalid statement: {:?}", tokens[*index]);
                 return Err(String::from("invalid statement.")); } 
           }
@@ -800,7 +850,7 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
               println!("not ; : {:?}", tokens[*index]);
               return Err(String::from("expect ';' closing statement after statement"));
           }
-          return Ok(Some(())); // Return Ok if parsing is successful
+          return Ok(codenode); // Return Ok if parsing is successful
       }
   }
 }
@@ -812,35 +862,53 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<()>,
 // "a - b"
 // NOTE: this cannot parse "complex" expressions such as "a + b * c".
 // I leave "a + b * c" as an exercise for the student.
-fn parse_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
+fn parse_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression, String> {
+  let mut expr = parse_term(tokens, index)?;
   print!("parse_expression\n");
-  parse_term(tokens, index)?; // Parse the first term
+  //parse_term(tokens, index)?; // Parse the first term
   if(matches!(peek_result(tokens, *index)?, Token::LeftBracket)){
     parse_array_form(tokens, index)?;
   }
   loop {
+    let opcode = match peek_result(tokens, *index)?{
+      Token::Plus => "%add",
+      Token::Subtract => "%sub",
+      Token::Multiply => "%mult",
+      Token::Divide => "%div",
+      Token::Modulus => "%mod",
+      _ => "%mov"
+    };
     match peek_result(tokens, *index)? {
-        Token::Plus | Token::Subtract | Token::Multiply | Token::Divide | Token::Modulus => {
+        Token::Plus | 
+        Token::Subtract | 
+        Token::Multiply | 
+        Token::Divide | 
+        Token::Modulus => {
             *index += 1; // Move to the next token
-            parse_term(tokens, index)?; // Parse the next term
             if(matches!(peek_result(tokens, *index)?, Token::LeftBracket)){
               parse_array_form(tokens, index)?;
             }
+            let m_expr = parse_term(tokens, index)?; // Parse the next term
+            let t = create_temp();
+            let instr = format!("%int {}\n{opcode} {}, {}, {}\n", t, t, expr.name, m_expr.name);
+            expr.code += &m_expr.code;
+            expr.code += &instr;
+            expr.name = t;
         }
         _ => break, // If the next token is not an operator, break the loop
     }
   }
   
-  return Ok(()); // Return Ok if parsing is successful
+  return Ok(expr); // Return Ok if parsing is successful
 }
 
-fn parse_array_form(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
+fn parse_array_form(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression, String> {
   //println!("current tok: {:?}", tokens[*index]);
   //println!("run parse expression after [");
   if(matches!(peek_result(tokens, *index)?,Token::LeftBracket)){
     *index += 1;
   }
-  parse_term(tokens, index)?;
+  let mut expr = parse_term(tokens, index)?; 
   //println!("current tok2: {:?}", tokens[*index]);
   if !matches!(next_result(tokens, index)?, Token::RightBracket) {
     return Err(String::from("expected ']'"));
@@ -848,35 +916,69 @@ fn parse_array_form(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String
   //println!("after ]: {:?}", tokens[*index]);
   //*index += 1;
 
-  return Ok(())
+  return Ok(expr)
 }
 
-fn parse_boolean_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
+fn parse_boolean_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression, String> {
   print!("parse_boolean_expression\n");
   //println!("term: {:?}", tokens[*index]);
-  parse_term(tokens, index)?; // Parse the left side of the expression
+  let mut expr = parse_term(tokens, index)?; // Parse the left side of the expression
+  let mut instr = "";
   //println!("parsed : {:?}", tokens[*index]);
 
   if(matches!(peek_result(tokens, *index)?,Token::LeftBracket)){
     parse_array_form(tokens,index)?;
   }
+  let opcode = match peek_result(tokens, *index)?{
+    Token::Less => "%lt",
+    Token::LessEqual => "%le",
+    Token::Greater => "%gt",
+    Token::GreaterEqual => "%ge",
+    Token::Equality => "%eq",
+    Token::NotEqual => "%neq",
+    _ => "%mov"
+  };
 
   match peek_result(tokens, *index)? {
       Token::Less | Token::LessEqual | Token::Greater | Token::GreaterEqual | Token::Equality | Token::NotEqual => {
           *index += 1; // Move to the next token
-          parse_term(tokens, index)?; // Parse the right side of the expression
+          if matches!(next_result(tokens, index)?, Token::Less) {
+            instr = "%lt";
+          }
+          if matches!(next_result(tokens, index)?, Token::LessEqual) {
+            instr = "%le";
+          }
+          if matches!(next_result(tokens, index)?, Token::Greater) {
+            instr = "%gt";
+          }
+          if matches!(next_result(tokens, index)?, Token::GreaterEqual) {
+            instr = "%ge";
+          }
+          if matches!(next_result(tokens, index)?, Token::Equality) {
+            instr = "%eq";
+          }
+          if matches!(next_result(tokens, index)?, Token::NotEqual) {
+            instr = "%neq";
+          }
+          // parse_term(tokens, index)?; // Parse the right side of the expression
+          let m_expr = parse_term(tokens, index)?; // Parse the next term
+          let t = create_temp();
+          let instr = format!("%{}, {}\n{opcode} {}, {}, {}\n", instr, t, t, expr.name, m_expr.name);
+          expr.code += &m_expr.code;
+          expr.code += &instr;
+          expr.name = t;
       }
       _ => {
         println!("not boolean operator : {:?}", tokens[*index]);
         return Err(String::from("expected boolean operator"))
       },
   }
-  return Ok(());
+  return Ok(expr);
 }
 
 
 // a term is either a Number or an Identifier.
-fn parse_term(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
+fn parse_term(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression, String> {
   match next_result(tokens, index)? {
     Token::Ident(name) => {
         // Check if the first character of the identifier is a digit
@@ -884,17 +986,29 @@ fn parse_term(tokens: &Vec<Token>, index: &mut usize) -> Result<(), String> {
             return Err(format!("Variable names cannot start with a digit: {}", name));
         }
         // Successfully parsed an identifier
-        return Ok(());
+        let expr = Expression {
+          code : String::from(""),
+          name : name.clone(),
+        };
+        return Ok(expr);
     }
-    Token::Num(_) => {
-        return Ok(());
+    Token::Num(num) => {
+        let expr = Expression {
+          code : String::from(""),
+          name : format!("{}", num),
+        };
+        return Ok(expr);
     }
     Token::LeftParen => {
       // Parse the expression inside the parentheses
       parse_expression(tokens, index)?;
       // Check if the next token is a right parenthesis
       if let Token::RightParen = next_result(tokens, index)? {
-          return Ok(());
+        let expr = Expression {
+          code : String::from(""),
+          name : format!("{}", "("),
+        };
+          return Ok(expr);
       } else {
           return Err(String::from("Expecting ')' after '('"));
       }
