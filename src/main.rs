@@ -888,7 +888,8 @@ fn parse_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression
             if(matches!(peek_result(tokens, *index)?, Token::LeftBracket)){
               parse_array_form(tokens, index)?;
             }
-            let m_expr = parse_term(tokens, index)?; // Parse the next term
+            let m_expr = parse_term(tokens, index)?; // Parse the next term 
+            // println!("{:?}",m_expr);
             let t = create_temp();
             let instr = format!("%int {}\n{opcode} {}, {}, {}\n", t, t, expr.name, m_expr.name);
             expr.code += &m_expr.code;
@@ -978,46 +979,75 @@ fn parse_boolean_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<Ex
 
 
 // a term is either a Number or an Identifier.
+// fn parse_term(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression, String> {
+//   match next_result(tokens, index)? {
+//     Token::Ident(name) => {
+//         // Check if the first character of the identifier is a digit
+//         if name.chars().next().unwrap().is_digit(10) {
+//             return Err(format!("Variable names cannot start with a digit: {}", name));
+//         }
+//         // Successfully parsed an identifier
+//         let expr = Expression {
+//           code : String::from(""),
+//           name : name.clone(),
+//         };
+//         return Ok(expr);
+//     }
+//     Token::Num(num) => {
+//         let expr = Expression {
+//           code : String::from(""),
+//           name : format!("{}", num),
+//         };
+//         return Ok(expr);
+//     }
+//     Token::LeftParen => {
+//       // Parse the expression inside the parentheses
+//       parse_expression(tokens, index)?;
+//       // Check if the next token is a right parenthesis
+//       if let Token::RightParen = next_result(tokens, index)? {
+//         let expr = Expression {
+//           code : String::from(""),
+//           name : format!("{}", "("),
+//         };
+//           return Ok(expr);
+//       } else {
+//           return Err(String::from("Expecting ')' after '('"));
+//       }
+//     }
+//     _ => {
+//         return Err(String::from("invalid expression"));
+//     }
+//   }
+// }
+
 fn parse_term(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression, String> {
   match next_result(tokens, index)? {
-    Token::Ident(name) => {
-        // Check if the first character of the identifier is a digit
-        if name.chars().next().unwrap().is_digit(10) {
-            return Err(format!("Variable names cannot start with a digit: {}", name));
-        }
-        // Successfully parsed an identifier
-        let expr = Expression {
-          code : String::from(""),
-          name : name.clone(),
-        };
-        return Ok(expr);
-    }
-    Token::Num(num) => {
-        let expr = Expression {
-          code : String::from(""),
-          name : format!("{}", num),
-        };
-        return Ok(expr);
-    }
-    Token::LeftParen => {
-      // Parse the expression inside the parentheses
-      parse_expression(tokens, index)?;
-      // Check if the next token is a right parenthesis
-      if let Token::RightParen = next_result(tokens, index)? {
-        let expr = Expression {
-          code : String::from(""),
-          name : format!("{}", "("),
-        };
-          return Ok(expr);
-      } else {
-          return Err(String::from("Expecting ')' after '('"));
-      }
-    }
-    _ => {
-        return Err(String::from("invalid expression"));
-    }
+      Token::Ident(name) => {
+          let expr = Expression {
+              code: String::new(),
+              name: name.clone(),
+          };
+          Ok(expr)
+      },
+      Token::Num(num) => {
+          let expr = Expression {
+              code: String::new(),
+              name: format!("{}", num),
+          };
+          Ok(expr)
+      },
+      Token::LeftParen => {
+          let expr = parse_expression(tokens, index)?;
+          if !matches!(next_result(tokens, index)?, Token::RightParen) {
+              Err(String::from("Expecting ')' after '('"))
+          } else {
+              Ok(expr)
+          }
+      },
+      _ => Err(String::from("invalid expression")),
   }
 }
+
 
 // writing tests!
 // testing shows robustness in software, and is good for spotting regressions
