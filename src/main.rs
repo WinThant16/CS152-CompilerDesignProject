@@ -3,10 +3,15 @@
 // A Handwritten Compiler Using Rust.
 // Creating a Lexer By Hand.
 
+use core::sync;
 // used to get the commandline arguments from the commandline.
 use std::env;
 // used to interact with the file system
 use std::fs;
+// for our symbol table
+use std::collections::HashMap;
+
+use std::string;
 
 mod interpreter;
 
@@ -22,8 +27,114 @@ fn create_temp() -> String {
       format!("_temp{}", VAR_NUM)
   }
 }
+enum DataType {
+  Array,
+  Int,
+  Function,
+}
 
+impl std::fmt::Display for DataType {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+      match self {
+        DataType::Array => write!(f, "Int[]"),
+        DataType::Int => write!(f, "Int"),
+        DataType::Function => write!(f, "Function"),
+      }
+  }
+}
 
+fn semantics_check(generated_code: String) -> bool {
+  // each symbol name will map to a datatype
+  // data types will be array, int, or function
+
+  let mut symbol_table: HashMap<String,DataType> = HashMap::new();
+  // we only add from %func, %int, and %int instructions
+
+  //let mut cleaned_code = generated_code.replace(",", "");
+  //cleaned_code = cleaned_code.replace("[", "");
+  //cleaned_code = cleaned_code.replace("]", "");
+
+  let mut mainFunctionSeen = false;
+  for line in generated_code.replace(",", "").lines() {
+    //stuff that'll add to symbol table
+    if line.starts_with("%func"){
+      let func_name = line.split_whitespace().nth(1).unwrap();
+      println!("func_name: {}", func_name);
+      if func_name == "main"{
+        mainFunctionSeen = true;
+      }
+      symbol_table.insert(func_name.to_string(), DataType::Function);
+      continue;
+    }
+    if line.starts_with("%int[]"){
+      let var_name = line.split_whitespace().nth(1).unwrap();
+      let array_size = line.split_whitespace().nth(2).unwrap();
+      println!("array_name: {}", var_name);
+      if(array_size.parse::<i32>().unwrap() <= 0){
+        println!("Error: Array size must be greater than 0.");
+        return false;
+      }
+      symbol_table.insert(var_name.to_string(), DataType::Array);
+      continue;
+    }
+    if line.starts_with("%int"){
+      let var_name = line.split_whitespace().nth(1).unwrap();
+      println!("var_name: {}", var_name);
+      symbol_table.insert(var_name.to_string(), DataType::Int);
+      continue;
+    }
+    // semantics check the line
+    let mut clean_line = line.replace("[", "");
+    clean_line = clean_line.replace("]", "");
+    let mut seenArrayType = false;
+    let mut seen_tokens: Vec<&str> = vec![];
+    for param in clean_line.split_whitespace(){
+      if param.starts_with("%"){
+        continue;
+      }
+        // not a number, not a +, and not in symbol table.. undeclared or undefined
+        if !symbol_table.contains_key(&param.replace("()","")) && !param.parse::<i32>().is_ok() && !param.starts_with("+"){
+          if(param.ends_with("()")){
+            println!("Error: Undefined function used: {}", param);
+          }else{
+            println!("Error: Undeclared variable used: {}", param);
+          }
+          return false;
+        }
+        // param is a +, check if last token is an array
+        if param == "+" {
+          let lastToken = *seen_tokens.last().unwrap();
+          let dataType = symbol_table.get(lastToken).unwrap();
+          if(!matches!(dataType, &DataType::Array)){
+            println!("Error: Attempt to use {dataType} {lastToken} like array.");
+            return false;
+          }else{
+            seenArrayType = false;
+          
+          }
+        }
+        // if seenarraytype is true and we passed +, then we are trying to use an array like a number
+        if(seenArrayType){
+          let lastToken = *seen_tokens.last().unwrap();
+          println!("Error: Attempt to use array {lastToken} like number.");
+          return false;
+        }
+        // set seenArrayType flag
+        if symbol_table.contains_key(param){
+          let dataType = symbol_table.get(param).unwrap();
+          if(matches!(dataType, &DataType::Array)){
+            seenArrayType = true;
+          }
+        }
+        seen_tokens.push(param);
+    }
+  }
+  if(mainFunctionSeen == false){
+    println!("Error: Main function not defined.");
+    return false;
+  }
+  return true;
+}
 fn main() {
 
     // Let us get commandline arguments and store them in a Vec<String>
@@ -87,6 +198,10 @@ fn main() {
         println!("Program Parsed Successfully.");
         println!("{}",&generated_code);
         // let generated_code: String = parse(tokens)?;
+
+        // SEMANTICS CHECK!!!!
+        semantics_check(generated_code.clone());
+        
         interpreter::execute_ir(&generated_code);
     }
 
