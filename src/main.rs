@@ -582,7 +582,7 @@ fn parse_function(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<Strin
       return Err(String::from("expected '('"));
   }
   
-  let mut code = format!("%func {}\n", func_ident);
+  let mut code = format!("%func {}", func_ident);
   let mut params: Vec<String> = vec![];
 
   // Loop to parse function parameters
@@ -611,6 +611,20 @@ fn parse_function(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<Strin
           }
       }
   }
+  // if there are params, add them to the function signature
+  print!("params: {:?}\n", params);
+  if(params.len() > 0){
+    code += &format!("(");
+    for param in params.iter() {
+      code += &format!("%int {}", param);
+      if(param != params.last().unwrap()){
+        code += &format!(", ");
+      }
+    }
+    code += &format!(")");
+  }
+  code += &format!("\n");
+
   // Check if the next token is '{'
   if !matches!(next_result(tokens, index)?, Token::LeftCurly) {
       return Err(String::from("expected '{'"));
@@ -758,10 +772,12 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<Stri
                 }
               }
               // If the token is 'return', parse the expression
-              /*Token::Return => { 
+              Token::Return => { 
                 *index += 1; 
-                parse_expression(tokens, index)?; 
-              }*/
+                let expr = parse_expression(tokens, index)?;
+                let code = format!("{}%ret {}\n", expr.code, expr.name);
+                codenode = Some(code);
+              }
               // If the token is 'print' 
               Token::Print => { 
                   *index += 1; // Move to the next token index
