@@ -3,15 +3,12 @@
 // A Handwritten Compiler Using Rust.
 // Creating a Lexer By Hand.
 
-use core::sync;
 // used to get the commandline arguments from the commandline.
 use std::env;
 // used to interact with the file system
 use std::fs;
 // for our symbol table
 use std::collections::HashMap;
-
-use std::string;
 
 mod interpreter;
 
@@ -54,16 +51,24 @@ fn semantics_check(generated_code: String) -> bool {
   //cleaned_code = cleaned_code.replace("[", "");
   //cleaned_code = cleaned_code.replace("]", "");
 
-  let mut mainFunctionSeen = false;
+  let mut main_function_seen = false;
+  let mut scope_name = "";
   for line in generated_code.replace(",", "").lines() {
     //stuff that'll add to symbol table
     if line.starts_with("%func"){
       let func_name = line.split_whitespace().nth(1).unwrap();
       println!("func_name: {}", func_name);
       if func_name == "main"{
-        mainFunctionSeen = true;
+        main_function_seen = true;
       }
-      symbol_table.insert(func_name.to_string(), DataType::Function);
+      scope_name = func_name;
+      println!("scope_name: {}", scope_name);
+      let key_name = func_name.to_string()+"|"+scope_name;
+      if(symbol_table.contains_key(&key_name)){
+        println!("Error: Function {func_name} already defined.");
+        return false;
+      }
+      symbol_table.insert(key_name, DataType::Function);
       continue;
     }
     if line.starts_with("%int[]"){
@@ -71,29 +76,40 @@ fn semantics_check(generated_code: String) -> bool {
       let array_size = line.split_whitespace().nth(2).unwrap();
       println!("array_name: {}", var_name);
       if(array_size.parse::<i32>().unwrap() <= 0){
-        println!("Error: Array size must be greater than 0.");
+        println!("Error: Array size of {var_name} must be greater than 0.");
         return false;
       }
-      symbol_table.insert(var_name.to_string(), DataType::Array);
+      let key_name = var_name.to_string()+"|"+scope_name;
+      println!("{}", key_name);
+      if(symbol_table.contains_key(&key_name)){
+        println!("Error: Variable {key_name} already declared.");
+        return false;
+      }
+      symbol_table.insert(key_name, DataType::Array);
       continue;
     }
     if line.starts_with("%int"){
       let var_name = line.split_whitespace().nth(1).unwrap();
       println!("var_name: {}", var_name);
-      symbol_table.insert(var_name.to_string(), DataType::Int);
+      let key_name = var_name.to_string()+"|"+scope_name;
+      if(symbol_table.contains_key(&key_name)){
+        println!("Error: Variable {var_name} already defined.");
+        return false;
+      }
+      symbol_table.insert(var_name.to_string()+"|"+scope_name, DataType::Int);
       continue;
     }
     // semantics check the line
     let mut clean_line = line.replace("[", "");
     clean_line = clean_line.replace("]", "");
-    let mut seenArrayType = false;
+    let mut seen_array_type = false;
     let mut seen_tokens: Vec<&str> = vec![];
     for param in clean_line.split_whitespace(){
       if param.starts_with("%"){
         continue;
       }
         // not a number, not a +, and not in symbol table.. undeclared or undefined
-        if !symbol_table.contains_key(&param.replace("()","")) && !param.parse::<i32>().is_ok() && !param.starts_with("+"){
+        if !symbol_table.contains_key(&(param.replace("()","")+"|"+scope_name)) && !param.parse::<i32>().is_ok() && !param.starts_with("+"){
           if(param.ends_with("()")){
             println!("Error: Undefined function used: {}", param);
           }else{
@@ -103,33 +119,32 @@ fn semantics_check(generated_code: String) -> bool {
         }
         // param is a +, check if last token is an array
         if param == "+" {
-          let lastToken = *seen_tokens.last().unwrap();
-          let dataType = symbol_table.get(lastToken).unwrap();
-          if(!matches!(dataType, &DataType::Array)){
-            println!("Error: Attempt to use {dataType} {lastToken} like array.");
+          let last_token = *seen_tokens.last().unwrap();
+          let data_type = symbol_table.get(&(last_token.to_string() + "|" + scope_name)).unwrap();
+          if(!matches!(data_type, &DataType::Array)){
+            println!("Error: Attempt to use {data_type} {last_token} like array.");
             return false;
           }else{
-            seenArrayType = false;
-          
+            seen_array_type = false;
           }
         }
         // if seenarraytype is true and we passed +, then we are trying to use an array like a number
-        if(seenArrayType){
-          let lastToken = *seen_tokens.last().unwrap();
-          println!("Error: Attempt to use array {lastToken} like number.");
+        if(seen_array_type){
+          let last_token = *seen_tokens.last().unwrap();
+          println!("Error: Attempt to use array {last_token} like number.");
           return false;
         }
         // set seenArrayType flag
         if symbol_table.contains_key(param){
-          let dataType = symbol_table.get(param).unwrap();
-          if(matches!(dataType, &DataType::Array)){
-            seenArrayType = true;
+          let data_type = symbol_table.get(&(param.to_string() + "|" + scope_name)).unwrap();
+          if(matches!(data_type, &DataType::Array)){
+            seen_array_type = true;
           }
         }
         seen_tokens.push(param);
     }
   }
-  if(mainFunctionSeen == false){
+  if(main_function_seen == false){
     println!("Error: Main function not defined.");
     return false;
   }
@@ -200,9 +215,9 @@ fn main() {
         // let generated_code: String = parse(tokens)?;
 
         // SEMANTICS CHECK!!!!
-        semantics_check(generated_code.clone());
-        
-        interpreter::execute_ir(&generated_code);
+        if (semantics_check(generated_code.clone())){
+          interpreter::execute_ir(&generated_code);
+        }
     }
 
     Err(message) => {
