@@ -1055,10 +1055,42 @@ fn parse_boolean_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<Ex
 fn parse_term(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression, String> {
   match next_result(tokens, index)? {
       Token::Ident(name) => {
-          let expr = Expression {
+          let mut expr = Expression {
               code: String::new(),
               name: name.clone(),
           };
+          if(matches!(peek_result(tokens, *index)?, Token::LeftParen)){
+            println!("function call {}", name);
+            *index += 1;
+            let mut params: Vec<String> = vec![];
+            loop{
+              match peek_result(tokens, *index)? {
+                Token::RightParen => {
+                  *index += 1;
+                  break;
+                }
+                _ => {
+                  let expr_param = parse_expression(tokens, index)?;
+                  params.push(expr_param.name);
+                  expr.code += &expr_param.code;
+                  if(matches!(peek_result(tokens, *index)?, Token::Comma)){
+                    *index += 1;
+                  } else {
+                     // pass the right paren
+                    *index += 1;
+                    break;
+                  }
+                }
+              }
+            }
+            // done with params
+            // what we will write the return value to
+            let t = create_temp();
+            expr.code += &format!("%int {}\n", t);
+            expr.code += &format!("%call {}, {}({})\n", t, name, params.join(","));
+            expr.name = t;
+          
+          }
           Ok(expr)
       },
       Token::Num(num) => {
