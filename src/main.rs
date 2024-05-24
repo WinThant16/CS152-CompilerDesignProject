@@ -53,22 +53,46 @@ fn semantics_check(generated_code: String) -> bool {
 
   let mut main_function_seen = false;
   let mut scope_name = "";
-  for line in generated_code.replace(",", "").lines() {
+  let mut line2;
+
+  for gline in generated_code.lines() {
+    //println!("gline: {}", gline);
+    let line = gline.replace(",", " ");
     //stuff that'll add to symbol table
     if line.starts_with("%func"){
-      let func_name = line.split_whitespace().nth(1).unwrap();
+      line2 = line.replace(")", " )");
+      line2 = line2.replace("(", " ");
+      //println!("line {}",line);
+      let func_name = line2.split_whitespace().nth(1).unwrap();
       println!("func_name: {}", func_name);
       if func_name == "main"{
         main_function_seen = true;
       }
       scope_name = func_name;
-      println!("scope_name: {}", scope_name);
+      //println!("scope_name: {}", scope_name);
       let key_name = func_name.to_string()+"|"+scope_name;
       if(symbol_table.contains_key(&key_name)){
         println!("Error: Function {func_name} already defined.");
         return false;
       }
       symbol_table.insert(key_name, DataType::Function);
+      // add function parameters to symbol table
+      let mut params = line2.split_whitespace().skip(2);
+      for param in params{
+        if param == ")"{
+          break;
+        }
+        if(param == "%int"){
+          continue;
+        }
+        let key_name = param.to_string()+"|"+scope_name;
+        println!("param {key_name}");
+        if(symbol_table.contains_key(&key_name)){
+          println!("Error: Duplicate parameter {param} declared in {scope_name}.");
+          return false;
+        }
+        symbol_table.insert(key_name, DataType::Int);
+      }
       continue;
     }
     if line.starts_with("%int[]"){
@@ -747,11 +771,10 @@ fn parse_function(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<Strin
     code += &format!("(");
     for param in params.iter() {
       code += &format!("%int {}", param);
-      if(param != params.last().unwrap()){
-        code += &format!(", ");
-      }
+      code += &format!(", ");
     }
     code += &format!(")");
+    code = code.replace(", )", ")");
   }
   code += &format!("\n");
 
