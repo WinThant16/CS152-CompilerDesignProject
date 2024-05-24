@@ -64,13 +64,13 @@ fn semantics_check(generated_code: String) -> bool {
       line2 = line2.replace("(", " ");
       //println!("line {}",line);
       let func_name = line2.split_whitespace().nth(1).unwrap();
-      println!("func_name: {}", func_name);
+      //println!("func_name: {}", func_name);
       if func_name == "main"{
         main_function_seen = true;
       }
       scope_name = func_name;
       //println!("scope_name: {}", scope_name);
-      let key_name = func_name.to_string()+"|"+scope_name;
+      let key_name = func_name.to_string()+"|main";
       if(symbol_table.contains_key(&key_name)){
         println!("Error: Function {func_name} already defined.");
         return false;
@@ -86,7 +86,7 @@ fn semantics_check(generated_code: String) -> bool {
           continue;
         }
         let key_name = param.to_string()+"|"+scope_name;
-        println!("param {key_name}");
+        //println!("param {key_name}");
         if(symbol_table.contains_key(&key_name)){
           println!("Error: Duplicate parameter {param} declared in {scope_name}.");
           return false;
@@ -98,7 +98,7 @@ fn semantics_check(generated_code: String) -> bool {
     if line.starts_with("%int[]"){
       let var_name = line.split_whitespace().nth(1).unwrap();
       let array_size = line.split_whitespace().nth(2).unwrap();
-      println!("array_name: {}", var_name);
+      //println!("array_name: {}", var_name);
       if(array_size.parse::<i32>().unwrap() <= 0){
         println!("Error: Array size of {var_name} must be greater than 0.");
         return false;
@@ -114,7 +114,7 @@ fn semantics_check(generated_code: String) -> bool {
     }
     if line.starts_with("%int"){
       let var_name = line.split_whitespace().nth(1).unwrap();
-      println!("var_name: {}", var_name);
+      //println!("var_name: {}", var_name);
       let key_name = var_name.to_string()+"|"+scope_name;
       if(symbol_table.contains_key(&key_name)){
         println!("Error: Variable {var_name} already defined.");
@@ -126,6 +126,8 @@ fn semantics_check(generated_code: String) -> bool {
     // semantics check the line
     let mut clean_line = line.replace("[", "");
     clean_line = clean_line.replace("]", "");
+    clean_line = clean_line.replace("(", "( ");
+    clean_line = clean_line.replace(")", "");
     let mut seen_array_type = false;
     let mut seen_tokens: Vec<&str> = vec![];
     for param in clean_line.split_whitespace(){
@@ -133,9 +135,12 @@ fn semantics_check(generated_code: String) -> bool {
         continue;
       }
         // not a number, not a +, and not in symbol table.. undeclared or undefined
-        if !symbol_table.contains_key(&(param.replace("()","")+"|"+scope_name)) && !param.parse::<i32>().is_ok() && !param.starts_with("+"){
-          if(param.ends_with("()")){
-            println!("Error: Undefined function used: {}", param);
+        //println!("param: {}", param);
+        let key_name = param.replace("(","")+"|"+scope_name;
+        //println!("key_name: {}", key_name);
+        if !symbol_table.contains_key(&(key_name)) && !param.parse::<i32>().is_ok() && !param.starts_with("+"){
+          if(param.ends_with("(")){
+            println!("Error: Undefined function used: {}", param.replace("(", ""));
           }else{
             println!("Error: Undeclared variable used: {}", param);
           }
