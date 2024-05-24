@@ -64,13 +64,13 @@ fn semantics_check(generated_code: String) -> bool {
       line2 = line2.replace("(", " ");
       //println!("line {}",line);
       let func_name = line2.split_whitespace().nth(1).unwrap();
-      println!("func_name: {}", func_name);
+      //println!("func_name: {}", func_name);
       if func_name == "main"{
         main_function_seen = true;
       }
       scope_name = func_name;
       //println!("scope_name: {}", scope_name);
-      let key_name = func_name.to_string()+"|"+scope_name;
+      let key_name = func_name.to_string()+"|main";
       if(symbol_table.contains_key(&key_name)){
         println!("Error: Function {func_name} already defined.");
         return false;
@@ -86,7 +86,7 @@ fn semantics_check(generated_code: String) -> bool {
           continue;
         }
         let key_name = param.to_string()+"|"+scope_name;
-        println!("param {key_name}");
+        //println!("param {key_name}");
         if(symbol_table.contains_key(&key_name)){
           println!("Error: Duplicate parameter {param} declared in {scope_name}.");
           return false;
@@ -98,7 +98,7 @@ fn semantics_check(generated_code: String) -> bool {
     if line.starts_with("%int[]"){
       let var_name = line.split_whitespace().nth(1).unwrap();
       let array_size = line.split_whitespace().nth(2).unwrap();
-      println!("array_name: {}", var_name);
+      //println!("array_name: {}", var_name);
       if(array_size.parse::<i32>().unwrap() <= 0){
         println!("Error: Array size of {var_name} must be greater than 0.");
         return false;
@@ -114,10 +114,10 @@ fn semantics_check(generated_code: String) -> bool {
     }
     if line.starts_with("%int"){
       let var_name = line.split_whitespace().nth(1).unwrap();
-      println!("var_name: {}", var_name);
+      //println!("var_name: {}", var_name);
       let key_name = var_name.to_string()+"|"+scope_name;
       if(symbol_table.contains_key(&key_name)){
-        println!("Error: Variable {var_name} already defined.");
+        println!("Error: Variable {var_name} already declared.");
         return false;
       }
       symbol_table.insert(var_name.to_string()+"|"+scope_name, DataType::Int);
@@ -126,6 +126,8 @@ fn semantics_check(generated_code: String) -> bool {
     // semantics check the line
     let mut clean_line = line.replace("[", "");
     clean_line = clean_line.replace("]", "");
+    clean_line = clean_line.replace("(", "( ");
+    clean_line = clean_line.replace(")", "");
     let mut seen_array_type = false;
     let mut seen_tokens: Vec<&str> = vec![];
     for param in clean_line.split_whitespace(){
@@ -133,9 +135,12 @@ fn semantics_check(generated_code: String) -> bool {
         continue;
       }
         // not a number, not a +, and not in symbol table.. undeclared or undefined
-        if !symbol_table.contains_key(&(param.replace("()","")+"|"+scope_name)) && !param.parse::<i32>().is_ok() && !param.starts_with("+"){
-          if(param.ends_with("()")){
-            println!("Error: Undefined function used: {}", param);
+        //println!("param: {}", param);
+        let key_name = param.replace("(","")+"|"+scope_name;
+        //println!("key_name: {}", key_name);
+        if !symbol_table.contains_key(&(key_name)) && !param.parse::<i32>().is_ok() && !param.starts_with("+"){
+          if(param.ends_with("(")){
+            println!("Error: Undefined function used: {}", param.replace("(", ""));
           }else{
             println!("Error: Undeclared variable used: {}", param);
           }
@@ -1040,7 +1045,7 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<Stri
 // NOTE: this cannot parse "complex" expressions such as "a + b * c".
 // I leave "a + b * c" as an exercise for the student.
 fn parse_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression, String> {
-  let mut expr = parse_term(tokens, index)?; // this gets the identifier or num
+  let mut expr = parse_multiply_expression(tokens, index)?; // this gets the identifier or num
   print!("parse_expression {}\n", expr.name);
   //parse_term(tokens, index)?; // Parse the first term
   if(matches!(peek_result(tokens, *index)?, Token::LeftBracket)){
@@ -1053,40 +1058,45 @@ fn parse_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression
     let opcode = match peek_result(tokens, *index)?{
       Token::Plus => "%add",
       Token::Subtract => "%sub",
-      Token::Multiply => "%mult",
-      Token::Divide => "%div",
-      Token::Modulus => "%mod",
-      _ => "%mov"
+      // Token::Multiply => "%mult",
+      // Token::Divide => "%div",
+      // Token::Modulus => "%mod",
+      _ => break,
     };
-    match peek_result(tokens, *index)? {
-        Token::Plus | 
-        Token::Subtract | 
-        Token::Multiply | 
-        Token::Divide | 
-        Token::Modulus => {
-            *index += 1; // Move to the next token
-            if(matches!(peek_result(tokens, *index)?, Token::LeftBracket)){
-              let array_num = parse_array_form(tokens, index)?;
-            }
-            let mut m_expr = parse_term(tokens, index)?; // Parse the next term
-            if(matches!(peek_result(tokens, *index)?, Token::LeftBracket)){
-              let array_num = parse_array_form(tokens, index)?;
-              let t = create_temp();
-              m_expr.code = format!("{}%int {}\n%mov {}, [{} + {}]\n", m_expr.code,t,t, m_expr.name, array_num.name);
-              m_expr.name = format!("{}", t);
-            }
-            let t = create_temp();
-            let instr = format!("%int {}\n{opcode} {}, {}, {}\n", t, t, expr.name, m_expr.name);
-            expr.code += &m_expr.code;
-            expr.code += &instr;
-            expr.name = t;
-        }
-        _ => break, // If the next token is not an operator, break the loop
-    }
+    *index += 1; //go to next token
+    let mut right_expr = parse_multiply_expression(tokens, index)?; // Parse the next higher precedence expression
+    let temp_var = create_temp(); // Create a temporary variable for the result
+    let code = format!("%int {}\n{} {}, {}, {}\n", temp_var, opcode, temp_var, expr.name, right_expr.name);
+    expr.code += &right_expr.code; // Combine the code from both expressions
+    expr.code += &code;
+    expr.name = temp_var; // Update the name to the temporary variable
   }
-  
-  return Ok(expr); // Return Ok if parsing is successful
+  Ok(expr) // Return the final expression
 }
+
+// Function to parse and evaluate expressions involving multiplication, division, and modulus
+fn parse_multiply_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression, String> {
+  // Start by parsing a term (either a number or an expression inside parentheses)
+  let mut expr = parse_term(tokens, index)?;
+  // Loop to handle multiplication, division, and modulus operations
+  loop {
+      let opcode = match peek_result(tokens, *index)? {
+          Token::Multiply => "%mult",
+          Token::Divide => "%div",
+          Token::Modulus => "%mod",
+          _ => break, // If it's not a multiplication, division, or modulus token, break the loop
+      };
+      *index += 1; // Move to the next token
+      let mut right_expr = parse_term(tokens, index)?; // Parse the next term
+      let temp_var = create_temp(); // Create a temporary variable for the result
+      let code = format!("%int {}\n{} {}, {}, {}\n", temp_var, opcode, temp_var, expr.name, right_expr.name);
+      expr.code += &right_expr.code; // Combine the code from both expressions
+      expr.code += &code;
+      expr.name = temp_var; // Update the name to the temporary variable
+  }
+  Ok(expr) // Return the final expression
+}
+
 
 fn parse_array_form(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression, String> {
   //println!("current tok: {:?}", tokens[*index]);
@@ -1205,54 +1215,124 @@ fn parse_boolean_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<Ex
 //   }
 // }
 
+// fn parse_term(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression, String> {
+//   match next_result(tokens, index)? {
+//       Token::Ident(name) => {
+//           let mut expr = Expression {
+//               code: String::new(),
+//               name: name.clone(),
+//           };
+//           if(matches!(peek_result(tokens, *index)?, Token::LeftParen)){
+//             println!("function call {}", name);
+//             *index += 1;
+//             let mut params: Vec<String> = vec![];
+//             loop{
+//               match peek_result(tokens, *index)? {
+//                 Token::RightParen => {
+//                   *index += 1;
+//                   break;
+//                 }
+//                 _ => {
+//                   let expr_param = parse_expression(tokens, index)?;
+//                   params.push(expr_param.name);
+//                   expr.code += &expr_param.code;
+//                   if(matches!(peek_result(tokens, *index)?, Token::Comma)){
+//                     *index += 1;
+//                   } else {
+//                      // pass the right paren
+//                     *index += 1;
+//                     break;
+//                   }
+//                 }
+//               }
+//             }
+//             // done with params
+//             // what we will write the return value to
+//             let t = create_temp();
+//             expr.code += &format!("%int {}\n", t);
+//             expr.code += &format!("%call {}, {}({})\n", t, name, params.join(","));
+//             expr.name = t;
+          
+//           }
+//           Ok(expr)
+//       },
+//       Token::Num(num) => {
+//           let expr = Expression {
+//               code: String::new(),
+//               name: format!("{}", num),
+//           };
+//           Ok(expr)
+//       },
+//       Token::LeftParen => {
+//           let expr = parse_expression(tokens, index)?;
+//           if !matches!(next_result(tokens, index)?, Token::RightParen) {
+//               Err(String::from("Expecting ')' after '('"))
+//           } else {
+//               Ok(expr)
+//           }
+//       },
+//       _ => Err(String::from("invalid expression")),
+//   }
+// }
+
 fn parse_term(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression, String> {
   match next_result(tokens, index)? {
+      Token::Num(num) => {
+          let expr = Expression {
+              code: String::from(""),
+              name: format!("{}", num),
+          };
+          Ok(expr)
+      }
       Token::Ident(name) => {
           let mut expr = Expression {
               code: String::new(),
               name: name.clone(),
           };
-          if(matches!(peek_result(tokens, *index)?, Token::LeftParen)){
-            println!("function call {}", name);
-            *index += 1;
-            let mut params: Vec<String> = vec![];
-            loop{
-              match peek_result(tokens, *index)? {
-                Token::RightParen => {
+          // Check for function call or array indexing
+          match peek_result(tokens, *index)? {
+              Token::LeftParen => {
                   *index += 1;
-                  break;
-                }
-                _ => {
-                  let expr_param = parse_expression(tokens, index)?;
-                  params.push(expr_param.name);
-                  expr.code += &expr_param.code;
-                  if(matches!(peek_result(tokens, *index)?, Token::Comma)){
-                    *index += 1;
-                  } else {
-                     // pass the right paren
-                    *index += 1;
-                    break;
+                  let mut params: Vec<String> = vec![];
+                  loop {
+                      match peek_result(tokens, *index)? {
+                          Token::RightParen => {
+                              *index += 1;
+                              break;
+                          }
+                          _ => {
+                              let expr_param = parse_expression(tokens, index)?;
+                              params.push(expr_param.name);
+                              expr.code += &expr_param.code;
+                              if matches!(peek_result(tokens, *index)?, Token::Comma) {
+                                  *index += 1;
+                              } else {
+                                  *index += 1;
+                                  break;
+                              }
+                          }
+                      }
                   }
-                }
+                  let temp_var = create_temp();
+                  expr.code += &format!("%int {}\n", temp_var);
+                  expr.code += &format!("%call {}, {}({})\n", temp_var, name, params.join(","));
+                  expr.name = temp_var;
               }
-            }
-            // done with params
-            // what we will write the return value to
-            let t = create_temp();
-            expr.code += &format!("%int {}\n", t);
-            expr.code += &format!("%call {}, {}({})\n", t, name, params.join(","));
-            expr.name = t;
-          
+              Token::LeftBracket => {
+                  *index += 1;
+                  let index_expr = parse_expression(tokens, index)?;
+                  if !matches!(next_result(tokens, index)?, Token::RightBracket) {
+                      return Err(String::from("Expecting ']' after '['"));
+                  }
+                  let temp_var = create_temp();
+                  expr.code += &format!("%int {}\n", temp_var);
+                  expr.code += &format!("%mov {}, [{} + {}]\n", temp_var, name, index_expr.name);
+                  expr.name = temp_var;
+              }
+              _ => {}
           }
           Ok(expr)
-      },
-      Token::Num(num) => {
-          let expr = Expression {
-              code: String::new(),
-              name: format!("{}", num),
-          };
-          Ok(expr)
-      },
+      }
       Token::LeftParen => {
           let expr = parse_expression(tokens, index)?;
           if !matches!(next_result(tokens, index)?, Token::RightParen) {
@@ -1260,7 +1340,7 @@ fn parse_term(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression, Stri
           } else {
               Ok(expr)
           }
-      },
+      }
       _ => Err(String::from("invalid expression")),
   }
 }
