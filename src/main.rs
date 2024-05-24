@@ -104,7 +104,7 @@ fn semantics_check(generated_code: String) -> bool {
         return false;
       }
       let key_name = var_name.to_string()+"|"+scope_name;
-      println!("{}", key_name);
+      //println!("{} is array", key_name);
       if(symbol_table.contains_key(&key_name)){
         println!("Error: Variable {key_name} already declared.");
         return false;
@@ -151,7 +151,8 @@ fn semantics_check(generated_code: String) -> bool {
           let last_token = *seen_tokens.last().unwrap();
           let data_type = symbol_table.get(&(last_token.to_string() + "|" + scope_name)).unwrap();
           if(!matches!(data_type, &DataType::Array)){
-            println!("Error: Attempt to use {data_type} {last_token} like array.");
+            println!("Error: Type mismatch. '{last_token}' is not an array.");
+            //println!("Error: Attempt to use {data_type} {last_token} like array.");
             return false;
           }else{
             seen_array_type = false;
@@ -160,14 +161,16 @@ fn semantics_check(generated_code: String) -> bool {
         // if seenarraytype is true and we passed +, then we are trying to use an array like a number
         if(seen_array_type){
           let last_token = *seen_tokens.last().unwrap();
-          println!("Error: Attempt to use array {last_token} like number.");
+          println!("Error: Type mismatch. Used '{last_token}' as an integer.");
+          //println!("Error: Attempt to use array {last_token} like number.");
           return false;
         }
         // set seenArrayType flag
-        if symbol_table.contains_key(param){
+        if symbol_table.contains_key(&(param.to_string() + "|" + scope_name)){
           let data_type = symbol_table.get(&(param.to_string() + "|" + scope_name)).unwrap();
           if(matches!(data_type, &DataType::Array)){
             seen_array_type = true;
+            //println!("set array flag {}", seen_array_type);
           }
         }
         seen_tokens.push(param);
