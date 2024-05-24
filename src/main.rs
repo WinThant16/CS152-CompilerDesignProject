@@ -117,7 +117,7 @@ fn semantics_check(generated_code: String) -> bool {
       //println!("var_name: {}", var_name);
       let key_name = var_name.to_string()+"|"+scope_name;
       if(symbol_table.contains_key(&key_name)){
-        println!("Error: Variable {var_name} already defined.");
+        println!("Error: Variable {var_name} already declared.");
         return false;
       }
       symbol_table.insert(var_name.to_string()+"|"+scope_name, DataType::Int);
