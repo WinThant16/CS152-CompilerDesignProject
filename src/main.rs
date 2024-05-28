@@ -24,6 +24,28 @@ fn create_temp() -> String {
       format!("_temp{}", VAR_NUM)
   }
 }
+
+// loop begin
+static mut LOOP_NUM: i64 = 0;
+fn create_loop() -> String {
+  unsafe {
+      LOOP_NUM += 1;
+      format!(":loopbegin{}", LOOP_NUM)
+  }
+}
+
+// loop end
+static mut LOOPEND_NUM: i64 = 0;
+fn end_loop() -> String {
+  unsafe {
+      LOOPEND_NUM += 1;
+      format!(":endloop{}", LOOPEND_NUM)
+  }
+}
+
+
+
+
 enum DataType {
   Array,
   Int,
