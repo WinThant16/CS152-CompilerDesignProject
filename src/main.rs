@@ -24,6 +24,30 @@ fn create_temp() -> String {
       format!("_temp{}", VAR_NUM)
   }
 }
+
+static mut iftrue_num: i64 = 0;
+fn create_iftrue_label() -> String {
+  unsafe {
+    iftrue_num += 1;
+      format!("iftrue{}", iftrue_num)
+  }
+}
+
+static mut endif_num: i64 = 0;
+fn create_endif_label() -> String {
+  unsafe {
+    endif_num += 1;
+      format!("iftrue{}", endif_num)
+  }
+}
+
+static mut else_num: i64 = 0;
+fn create_else_label() -> String {
+  unsafe {
+    else_num += 1;
+      format!("else{}", else_num)
+  }
+}
 enum DataType {
   Array,
   Int,
@@ -990,31 +1014,55 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<Stri
                 *index += 1; // matched a }
                 return Ok(Some(String::from("TODO:While"))); // skip ; check
               }
-
-              Token::If => { 
+*/
+              Token::If => {
                 //println!("if");
                 *index += 1; // Move to the next token index
-                parse_boolean_expression(tokens, index)?; // Parse boolean expression
+                // create labels
+                let iftrue_label = create_iftrue_label();
+                let endif_label = create_endif_label();
+                //let else_label = create_else_label();
+                println!("before if parse boolean expression: {:?}", tokens[*index]);
+                let conditional = parse_boolean_expression(tokens, index)?; // Parse boolean expression
+                println!("after if parse boolean expression: {:?}", tokens[*index]);
+                let mut code = format!("{}%branch_if {}, :{}\n",conditional.code, conditional.name, iftrue_label);
+                let mut statementCode: String = String::from("");
                 if !matches!(next_result(tokens, index)?, Token::LeftCurly) { // If the next token is not '{', return an error
                   return Err(String::from("expect '{' closing statement"));
                 }
                 while !matches!(peek_result(tokens, *index)?, Token::RightCurly){ // while not right bracket
-                  parse_statement(tokens, index)?;
+                  match parse_statement(tokens, index)? {
+                    None => { /* do nothing lol */ }
+                    Some(statement) => {
+                      statementCode += &statement;
+                    }
+                  }
                 }
-                *index += 1; 
-                if matches!(peek_result(tokens, *index)?, Token::Else) { 
+                *index += 1;
+                // handle else
+                if matches!(peek_result(tokens, *index)?, Token::Else) {
                   *index += 1; // Move to the next token index
                   if !matches!(next_result(tokens, index)?, Token::LeftCurly) { // If the next token is not '{', return an error
-                  return Err(String::from("expect '{' closing statement"));
+                    return Err(String::from("expect '{' opening statement"));
                   }
                   while !matches!(peek_result(tokens, *index)?, Token::RightCurly){ // while not right bracket
-                    parse_statement(tokens, index)?;
+                    match parse_statement(tokens, index)? {
+                      None => { /* do nothing lol */ }
+                      Some(statement) => {
+                        code += &statement;
+                      }
+                    }
                   }
+
                   *index += 1;
                 }
-                return Ok(Some(String::from("TODO:IF"))); // skip ; check
+                code += &format!("%jmp :{}\n", endif_label);
+                code += &format!(":{}\n", iftrue_label);
+                code += &statementCode;
+                code += &format!(":{}\n", endif_label);
+                return Ok(Some(code)); // skip ; check
               }
-
+/*
               Token::Continue => { 
                 *index += 1; // Move to the next token index
               }
@@ -1120,8 +1168,9 @@ fn parse_array_form(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression
 
 fn parse_boolean_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression, String> {
   print!("parse_boolean_expression\n");
-  //println!("term: {:?}", tokens[*index]);
+  println!("term: {:?}", tokens[*index]);
   let mut expr = parse_term(tokens, index)?; // Parse the left side of the expression
+  println!("after term: {:?}", tokens[*index]);
   let mut instr = "";
   //println!("parsed : {:?}", tokens[*index]);
 
@@ -1141,30 +1190,15 @@ fn parse_boolean_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<Ex
   match peek_result(tokens, *index)? {
       Token::Less | Token::LessEqual | Token::Greater | Token::GreaterEqual | Token::Equality | Token::NotEqual => {
           *index += 1; // Move to the next token
-          if matches!(next_result(tokens, index)?, Token::Less) {
-            instr = "%lt";
-          }
-          if matches!(next_result(tokens, index)?, Token::LessEqual) {
-            instr = "%le";
-          }
-          if matches!(next_result(tokens, index)?, Token::Greater) {
-            instr = "%gt";
-          }
-          if matches!(next_result(tokens, index)?, Token::GreaterEqual) {
-            instr = "%ge";
-          }
-          if matches!(next_result(tokens, index)?, Token::Equality) {
-            instr = "%eq";
-          }
-          if matches!(next_result(tokens, index)?, Token::NotEqual) {
-            instr = "%neq";
-          }
+          println!("boolean operator : {:?}", tokens[*index]);
           // parse_term(tokens, index)?; // Parse the right side of the expression
+          println!("term: {:?}", tokens[*index]);
           let m_expr = parse_term(tokens, index)?; // Parse the next term
+          println!("after term: {:?}", tokens[*index]);
           let t = create_temp();
-          let instr = format!("%{}, {}\n{opcode} {}, {}, {}\n", instr, t, t, expr.name, m_expr.name);
+          let code = format!("%int {t}\n{opcode} {t}, {}, {}\n", expr.name, m_expr.name);
           expr.code += &m_expr.code;
-          expr.code += &instr;
+          expr.code += &code;
           expr.name = t;
       }
       _ => {
