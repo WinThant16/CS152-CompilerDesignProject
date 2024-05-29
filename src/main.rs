@@ -25,27 +25,45 @@ fn create_temp() -> String {
   }
 }
 
-// loop begin
-static mut LOOP_NUM: i64 = 0;
-fn create_loop() -> String {
+static mut whileloopbegin_num: i64 = 0;
+fn create_whileloopbegin_label() -> String {
   unsafe {
-      LOOP_NUM += 1;
-      format!(":loopbegin{}", LOOP_NUM)
+    whileloopbegin_num += 1;
+      format!("loopbegin{}", whileloopbegin_num)
   }
 }
 
-// loop end
-static mut LOOPEND_NUM: i64 = 0;
-fn end_loop() -> String {
+static mut whileloopend_num: i64 = 0;
+fn create_whileloopend_label() -> String {
   unsafe {
-      LOOPEND_NUM += 1;
-      format!(":endloop{}", LOOPEND_NUM)
+    whileloopend_num += 1;
+      format!("endloop_{}", whileloopend_num)
   }
 }
 
+static mut iftrue_num: i64 = 0;
+fn create_iftrue_label() -> String {
+  unsafe {
+    iftrue_num += 1;
+      format!("iftrue{}", iftrue_num)
+  }
+}
 
+static mut endif_num: i64 = 0;
+fn create_endif_label() -> String {
+  unsafe {
+    endif_num += 1;
+      format!("endif{}", endif_num)
+  }
+}
 
-
+static mut else_num: i64 = 0;
+fn create_else_label() -> String {
+  unsafe {
+    else_num += 1;
+      format!("else{}", else_num)
+  }
+}
 enum DataType {
   Array,
   Int,
@@ -153,7 +171,7 @@ fn semantics_check(generated_code: String) -> bool {
     let mut seen_array_type = false;
     let mut seen_tokens: Vec<&str> = vec![];
     for param in clean_line.split_whitespace(){
-      if param.starts_with("%"){
+      if param.starts_with("%") || param.starts_with(":"){
         continue;
       }
         // not a number, not a +, and not in symbol table.. undeclared or undefined
@@ -995,11 +1013,16 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<Stri
                   }
                   codenode = Some(code);
               }
-/* 
+
               Token::While => { 
                 //println!("While");
                 *index += 1; // Move to the next token index
-                parse_boolean_expression(tokens, index)?; // Parse boolean expression
+                let while_label = create_whileloopbegin_label();
+                let endwhile_label = create_whileloopend_label();
+                let mut statementCode: String = String::from("");
+                let condition = parse_boolean_expression(tokens, index)?; // Parse boolean expression
+                let mut code = format!(":{}\n", while_label);
+                code += &format!("{}%branch_ifn {}, :{}\n",condition.code, condition.name, endwhile_label);
                 //println!("parsed");
                 if !matches!(next_result(tokens, index)?, Token::LeftCurly) { // If the next token is not '{', return an error
                     return Err(String::from("expect '{' for while loop"));
@@ -1007,36 +1030,71 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<Stri
                 //println!("after left curly: {:?}", tokens[*index]);
                 while !matches!(peek_result(tokens, *index)?, Token::RightCurly){ // while not right bracket
                   //println!("not right bracket: {:?}", tokens[*index]);
-                  parse_statement(tokens, index)?;
+                  // parse_statement(tokens, index)?;
+                  match parse_statement(tokens, index)? {
+                    None => { /* do nothing lol */ }
+                    Some(statement) => {
+                      statementCode += &statement;
+                    }
+                  }
                 }
                 *index += 1; // matched a }
-                return Ok(Some(String::from("TODO:While"))); // skip ; check
+                code += &statementCode;
+                code += &format!("%jmp :{}\n",while_label);
+                code += &format!(":{}\n", endwhile_label);
+                
+                // return Ok(Some(String::from("TODO:While"))); // skip ; check
+                return Ok(Some(code)); // skip ; check
               }
 
-              Token::If => { 
+              Token::If => {
                 //println!("if");
                 *index += 1; // Move to the next token index
-                parse_boolean_expression(tokens, index)?; // Parse boolean expression
+                // create labels
+                let iftrue_label = create_iftrue_label();
+                let endif_label = create_endif_label();
+                //let else_label = create_else_label();
+                println!("before if parse boolean expression: {:?}", tokens[*index]);
+                let conditional = parse_boolean_expression(tokens, index)?; // Parse boolean expression
+                println!("after if parse boolean expression: {:?}", tokens[*index]);
+                let mut code = format!("{}%branch_if {}, :{}\n",conditional.code, conditional.name, iftrue_label);
+                let mut statementCode: String = String::from("");
                 if !matches!(next_result(tokens, index)?, Token::LeftCurly) { // If the next token is not '{', return an error
                   return Err(String::from("expect '{' closing statement"));
                 }
                 while !matches!(peek_result(tokens, *index)?, Token::RightCurly){ // while not right bracket
-                  parse_statement(tokens, index)?;
+                  match parse_statement(tokens, index)? {
+                    None => { /* do nothing lol */ }
+                    Some(statement) => {
+                      statementCode += &statement;
+                    }
+                  }
                 }
-                *index += 1; 
-                if matches!(peek_result(tokens, *index)?, Token::Else) { 
+                *index += 1;
+                // handle else
+                if matches!(peek_result(tokens, *index)?, Token::Else) {
                   *index += 1; // Move to the next token index
                   if !matches!(next_result(tokens, index)?, Token::LeftCurly) { // If the next token is not '{', return an error
-                  return Err(String::from("expect '{' closing statement"));
+                    return Err(String::from("expect '{' opening statement"));
                   }
                   while !matches!(peek_result(tokens, *index)?, Token::RightCurly){ // while not right bracket
-                    parse_statement(tokens, index)?;
+                    match parse_statement(tokens, index)? {
+                      None => { /* do nothing lol */ }
+                      Some(statement) => {
+                        code += &statement;
+                      }
+                    }
                   }
+
                   *index += 1;
                 }
-                return Ok(Some(String::from("TODO:IF"))); // skip ; check
+                code += &format!("%jmp :{}\n", endif_label);
+                code += &format!(":{}\n", iftrue_label);
+                code += &statementCode;
+                code += &format!(":{}\n", endif_label);
+                return Ok(Some(code)); // skip ; check
               }
-
+/*
               Token::Continue => { 
                 *index += 1; // Move to the next token index
               }
@@ -1142,8 +1200,9 @@ fn parse_array_form(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression
 
 fn parse_boolean_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<Expression, String> {
   print!("parse_boolean_expression\n");
-  //println!("term: {:?}", tokens[*index]);
+  println!("term: {:?}", tokens[*index]);
   let mut expr = parse_term(tokens, index)?; // Parse the left side of the expression
+  println!("after term: {:?}", tokens[*index]);
   let mut instr = "";
   //println!("parsed : {:?}", tokens[*index]);
 
@@ -1163,30 +1222,15 @@ fn parse_boolean_expression(tokens: &Vec<Token>, index: &mut usize) -> Result<Ex
   match peek_result(tokens, *index)? {
       Token::Less | Token::LessEqual | Token::Greater | Token::GreaterEqual | Token::Equality | Token::NotEqual => {
           *index += 1; // Move to the next token
-          if matches!(next_result(tokens, index)?, Token::Less) {
-            instr = "%lt";
-          }
-          if matches!(next_result(tokens, index)?, Token::LessEqual) {
-            instr = "%le";
-          }
-          if matches!(next_result(tokens, index)?, Token::Greater) {
-            instr = "%gt";
-          }
-          if matches!(next_result(tokens, index)?, Token::GreaterEqual) {
-            instr = "%ge";
-          }
-          if matches!(next_result(tokens, index)?, Token::Equality) {
-            instr = "%eq";
-          }
-          if matches!(next_result(tokens, index)?, Token::NotEqual) {
-            instr = "%neq";
-          }
+          println!("boolean operator : {:?}", tokens[*index]);
           // parse_term(tokens, index)?; // Parse the right side of the expression
+          println!("term: {:?}", tokens[*index]);
           let m_expr = parse_term(tokens, index)?; // Parse the next term
+          println!("after term: {:?}", tokens[*index]);
           let t = create_temp();
-          let instr = format!("%{}, {}\n{opcode} {}, {}, {}\n", instr, t, t, expr.name, m_expr.name);
+          let code = format!("%int {t}\n{opcode} {t}, {}, {}\n", expr.name, m_expr.name);
           expr.code += &m_expr.code;
-          expr.code += &instr;
+          expr.code += &code;
           expr.name = t;
       }
       _ => {
