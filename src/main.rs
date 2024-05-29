@@ -37,7 +37,7 @@ static mut endif_num: i64 = 0;
 fn create_endif_label() -> String {
   unsafe {
     endif_num += 1;
-      format!("iftrue{}", endif_num)
+      format!("endif{}", endif_num)
   }
 }
 
@@ -155,7 +155,7 @@ fn semantics_check(generated_code: String) -> bool {
     let mut seen_array_type = false;
     let mut seen_tokens: Vec<&str> = vec![];
     for param in clean_line.split_whitespace(){
-      if param.starts_with("%"){
+      if param.starts_with("%") || param.starts_with(":"){
         continue;
       }
         // not a number, not a +, and not in symbol table.. undeclared or undefined
