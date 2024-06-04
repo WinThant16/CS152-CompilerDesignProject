@@ -17,6 +17,7 @@ struct Expression {
   name: String,
 }
 
+static mut WHILE_LABEL_STACK: Vec<String> = vec![];
 static mut VAR_NUM: i64 = 0;
 fn create_temp() -> String {
   unsafe {
@@ -223,7 +224,6 @@ fn semantics_check(generated_code: String) -> bool {
   return true;
 }
 fn main() {
-
     // Let us get commandline arguments and store them in a Vec<String>
     let args: Vec<String> = env::args().collect();
     if args.len() == 1 {
@@ -1019,6 +1019,10 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<Stri
                 *index += 1; // Move to the next token index
                 let while_label = create_whileloopbegin_label();
                 let endwhile_label = create_whileloopend_label();
+                unsafe{
+                  WHILE_LABEL_STACK.push(while_label.clone());
+                  WHILE_LABEL_STACK.push(endwhile_label.clone());
+                }
                 let mut statementCode: String = String::from("");
                 let condition = parse_boolean_expression(tokens, index)?; // Parse boolean expression
                 let mut code = format!(":{}\n", while_label);
@@ -1044,6 +1048,10 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<Stri
                 code += &format!(":{}\n", endwhile_label);
                 
                 // return Ok(Some(String::from("TODO:While"))); // skip ; check
+                unsafe{
+                  WHILE_LABEL_STACK.pop();
+                  WHILE_LABEL_STACK.pop();
+                }
                 return Ok(Some(code)); // skip ; check
               }
             
@@ -1094,15 +1102,25 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<Stri
                 code += &format!(":{}\n", endif_label);
                 return Ok(Some(code)); // skip ; check
               }
-/*
+
               Token::Continue => { 
                 *index += 1; // Move to the next token index
+                let code;
+                unsafe{
+                   code = format!("%jmp :{}\n", WHILE_LABEL_STACK[WHILE_LABEL_STACK.len() - 2]);
+                }
+                codenode = Some(code);
               }
 
               Token::Break => { 
                 *index += 1; // Move to the next token index
+                let code;
+                unsafe{
+                  code = format!("%jmp :{}\n", WHILE_LABEL_STACK[WHILE_LABEL_STACK.len() - 1]);
+                }
+                codenode = Some(code);
               }
-*/
+
               // If the token is invalid, return an error
               
               _ => {
