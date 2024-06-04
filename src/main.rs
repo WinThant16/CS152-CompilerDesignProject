@@ -25,6 +25,22 @@ fn create_temp() -> String {
   }
 }
 
+static mut whileloopbegin_num: i64 = 0;
+fn create_whileloopbegin_label() -> String {
+  unsafe {
+    whileloopbegin_num += 1;
+      format!("loopbegin{}", whileloopbegin_num)
+  }
+}
+
+static mut whileloopend_num: i64 = 0;
+fn create_whileloopend_label() -> String {
+  unsafe {
+    whileloopend_num += 1;
+      format!("endloop_{}", whileloopend_num)
+  }
+}
+
 static mut iftrue_num: i64 = 0;
 fn create_iftrue_label() -> String {
   unsafe {
@@ -997,11 +1013,16 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<Stri
                   }
                   codenode = Some(code);
               }
-/* 
+
               Token::While => { 
                 //println!("While");
                 *index += 1; // Move to the next token index
-                parse_boolean_expression(tokens, index)?; // Parse boolean expression
+                let while_label = create_whileloopbegin_label();
+                let endwhile_label = create_whileloopend_label();
+                let mut statementCode: String = String::from("");
+                let condition = parse_boolean_expression(tokens, index)?; // Parse boolean expression
+                let mut code = format!(":{}\n", while_label);
+                code += &format!("{}%branch_ifn {}, :{}\n",condition.code, condition.name, endwhile_label);
                 //println!("parsed");
                 if !matches!(next_result(tokens, index)?, Token::LeftCurly) { // If the next token is not '{', return an error
                     return Err(String::from("expect '{' for while loop"));
@@ -1009,12 +1030,23 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<Stri
                 //println!("after left curly: {:?}", tokens[*index]);
                 while !matches!(peek_result(tokens, *index)?, Token::RightCurly){ // while not right bracket
                   //println!("not right bracket: {:?}", tokens[*index]);
-                  parse_statement(tokens, index)?;
+                  // parse_statement(tokens, index)?;
+                  match parse_statement(tokens, index)? {
+                    None => { /* do nothing lol */ }
+                    Some(statement) => {
+                      statementCode += &statement;
+                    }
+                  }
                 }
                 *index += 1; // matched a }
-                return Ok(Some(String::from("TODO:While"))); // skip ; check
+                code += &statementCode;
+                code += &format!("%jmp :{}\n",while_label);
+                code += &format!(":{}\n", endwhile_label);
+                
+                // return Ok(Some(String::from("TODO:While"))); // skip ; check
+                return Ok(Some(code)); // skip ; check
               }
-*/
+            
               Token::If => {
                 //println!("if");
                 *index += 1; // Move to the next token index
