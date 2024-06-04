@@ -1107,6 +1107,9 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<Stri
                 *index += 1; // Move to the next token index
                 let code;
                 unsafe{
+                  if(WHILE_LABEL_STACK.len() == 0){
+                    return Err(String::from("continue statement outside of loop"));
+                  }
                    code = format!("%jmp :{}\n", WHILE_LABEL_STACK[WHILE_LABEL_STACK.len() - 2]);
                 }
                 codenode = Some(code);
@@ -1116,6 +1119,9 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<Stri
                 *index += 1; // Move to the next token index
                 let code;
                 unsafe{
+                  if(WHILE_LABEL_STACK.len() == 0){
+                    return Err(String::from("break statement outside of loop"));
+                  }
                   code = format!("%jmp :{}\n", WHILE_LABEL_STACK[WHILE_LABEL_STACK.len() - 1]);
                 }
                 codenode = Some(code);
