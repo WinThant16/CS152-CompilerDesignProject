@@ -1046,7 +1046,7 @@ fn parse_statement(tokens: &Vec<Token>, index: &mut usize) -> Result<Option<Stri
                 // return Ok(Some(String::from("TODO:While"))); // skip ; check
                 return Ok(Some(code)); // skip ; check
               }
-
+            
               Token::If => {
                 //println!("if");
                 *index += 1; // Move to the next token index
